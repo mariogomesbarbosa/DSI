@@ -459,19 +459,7 @@ async function extrairPropriedadesBasicas(node: SceneNode): Promise<string> {
     }
   }
 
-  // Verificar se o nó possui propriedades de componente
-  if ('componentProperties' in node) {
-    const cmpPropsStr = JSON.stringify(node.componentProperties, null, 2);
-    if (cmpPropsStr !== "{}") {
-      props += `\nPropriedades do Componente:\n`;
-      const cProps = (node as any).componentProperties;
-      for (const key in cProps) {
-        // Figma adiciona ids às chaves (ex: "Size#123"). Limpar string:
-        const cleanKey = key.split('#')[0];
-        props += `${cleanKey}: ${cProps[key].value}\n`;
-      }
-    }
-  }
+  // Propriedades nativas do componente removidas conforme solicitado
 
   return props.trim() + '\n';
 }
