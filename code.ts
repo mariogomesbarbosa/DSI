@@ -84,13 +84,27 @@ async function generateDocumentation() {
   propsFrame.paddingRight = 40;
   propsFrame.itemSpacing = 24;
 
-  const propsText = figma.createText();
-  propsText.characters = extrairPropriedadesBasicas(node);
-  propsText.fontSize = 14;
-  propsText.fontName = { family: "Inter", style: "Regular" };
-  propsText.lineHeight = { value: 150, unit: "PERCENT" };
-  propsText.fills = [figma.util.solidPaint("#333333")];
-  propsFrame.appendChild(propsText);
+  // 1. Lado Esquerdo - Extração Hierárquica (Estrutura, Icons, Labels)
+  let badgeIndex = 1;
+  const targetForSpecs = node.type === 'COMPONENT_SET' ? node.defaultVariant : node;
+
+  await appendSpecGroup(propsFrame, badgeIndex, "Estrutura", targetForSpecs);
+  const mainBadge = badgeIndex++;
+
+  let leftBadge = -1;
+  let rightBadge = -1;
+
+  if ('children' in targetForSpecs) {
+    for (const child of targetForSpecs.children) {
+      if (child.type === 'TEXT') {
+        leftBadge = leftBadge === -1 ? badgeIndex : leftBadge;
+        await appendSpecGroup(propsFrame, badgeIndex++, "Label", child);
+      } else if (child.type === 'INSTANCE' || child.type === 'VECTOR' || child.type === 'BOOLEAN_OPERATION') {
+        rightBadge = rightBadge === -1 ? badgeIndex : rightBadge;
+        await appendSpecGroup(propsFrame, badgeIndex++, "Icon", child);
+      }
+    }
+  }
 
   // Lado Direito - Preview (Card Branco)
   const previewFrame = figma.createFrame();
@@ -99,8 +113,8 @@ async function generateDocumentation() {
   previewFrame.cornerRadius = 8;
   previewFrame.layoutMode = "VERTICAL";
   previewFrame.layoutGrow = 1;
-  previewFrame.primaryAxisAlignItems = "CENTER"; // Centraliza preview vertical
-  previewFrame.counterAxisAlignItems = "CENTER"; // Centraliza preview horizontal
+  previewFrame.primaryAxisAlignItems = "CENTER";
+  previewFrame.counterAxisAlignItems = "CENTER";
   previewFrame.paddingTop = 60;
   previewFrame.paddingBottom = 60;
   previewFrame.paddingLeft = 60;
@@ -109,16 +123,76 @@ async function generateDocumentation() {
   // Clonar Componente para o Preview
   let clone;
   if (node.type === 'COMPONENT_SET') {
-    // Se for um ComponentSet, pego o primeiro componente dele
     clone = node.defaultVariant.createInstance();
   } else if (node.type === 'COMPONENT') {
     clone = node.createInstance();
   } else {
-    // Instância
     clone = node.clone();
   }
 
-  previewFrame.appendChild(clone);
+  // Criar Canvas absoluto para permitir sobreposição de Pinos Livres
+  const canvasFrame = figma.createFrame();
+  canvasFrame.name = "Canvas";
+  canvasFrame.fills = [];
+
+  const pad = 60;
+  clone.x = pad;
+  clone.y = pad;
+  canvasFrame.appendChild(clone);
+  canvasFrame.resize(clone.width + pad * 2, clone.height + pad * 2);
+
+  // Lógica de Pintar Pinos (Specs) nas laterais do Componente Isolado
+  const drawPin = (num: number, position: 'top' | 'left' | 'right') => {
+    const pinFrame = figma.createFrame();
+    pinFrame.resize(24, 24);
+    pinFrame.cornerRadius = 12;
+    pinFrame.fills = [figma.util.solidPaint("#1A1A1A")];
+    pinFrame.layoutMode = "VERTICAL";
+    pinFrame.primaryAxisAlignItems = "CENTER";
+    pinFrame.counterAxisAlignItems = "CENTER";
+
+    const pinText = figma.createText();
+    pinText.characters = num.toString();
+    pinText.fontSize = 12;
+    pinText.fontName = { family: "Inter", style: "Bold" };
+    pinText.fills = [figma.util.solidPaint("#FFFFFF")];
+    pinFrame.appendChild(pinText);
+
+    const line = figma.createLine();
+    line.strokes = [figma.util.solidPaint("#1A1A1A")];
+    line.strokeWeight = 1;
+
+    if (position === 'top') {
+      pinFrame.x = pad + clone.width / 2 - 12;
+      pinFrame.y = pad - 40;
+      line.x = pad + clone.width / 2;
+      line.y = pad - 16;
+      line.resize(16, 0);
+      line.rotation = -90;
+    } else if (position === 'left') {
+      pinFrame.x = pad - 40;
+      pinFrame.y = pad + clone.height / 2 - 12;
+      line.x = pad - 16;
+      line.y = pad + clone.height / 2;
+      line.resize(16, 0);
+    } else if (position === 'right') {
+      pinFrame.x = pad + clone.width + 16;
+      pinFrame.y = pad + clone.height / 2 - 12;
+      line.x = pad + clone.width;
+      line.y = pad + clone.height / 2;
+      line.resize(16, 0);
+    }
+
+    canvasFrame.appendChild(line);
+    canvasFrame.appendChild(pinFrame);
+  };
+
+  // Instanciar Pinos Baseados na árvore percorrida
+  drawPin(mainBadge, 'top');
+  if (leftBadge !== -1) drawPin(leftBadge, 'left');
+  if (rightBadge !== -1) drawPin(rightBadge, 'right');
+
+  previewFrame.appendChild(canvasFrame);
 
   // Adicionar lados ao container "Estrutura"
   estruturaContent.appendChild(propsFrame);
@@ -153,17 +227,17 @@ async function generateDocumentation() {
     }
 
     // Função auxiliar para renderizar uma seção de variantes (Seja Estado ou não)
-    const renderVariantesSection = (title: string, propKeys: string[]) => {
+    const renderVariantesSection = async (title: string, propKeys: string[]) => {
       const section = createSectionFrame(title);
       let adicionouConteudo = false;
 
-      propKeys.forEach(propKey => {
+      for (const propKey of propKeys) {
         const cleanKey = propKey.split('#')[0];
         const defaultValue = propriedades[propKey].defaultValue;
         // As opções válidas para esta propriedade
         const options = propriedades[propKey].variantOptions || [];
 
-        options.forEach(optionStr => {
+        for (const optionStr of options) {
           // Só desenhar variações que não sejam o padrão/default (Pois a default já está na 'Estrutura')
           if (optionStr !== defaultValue && optionStr.toLowerCase() !== 'default') {
             adicionouConteudo = true;
@@ -174,7 +248,6 @@ async function generateDocumentation() {
             titleRow.fontSize = 14;
             titleRow.fontName = { family: "Inter", style: "Bold" };
             titleRow.fills = [figma.util.solidPaint("#1A1A1A")];
-            // titleRow.paddingBottom = 8;
 
             section.appendChild(titleRow);
 
@@ -193,8 +266,6 @@ async function generateDocumentation() {
             const varianteTarget = compSet.children.find(child => {
               if (child.type === 'COMPONENT') {
                 const childProps = (child as any).componentPropertyReferences || {};
-                // O nome do componente variante no figma é ex: "State=Hover, Size=Medium"
-                // Parse simplificado buscando o valor exato no nome (isso cobre grande parte dos casos default do figma)
                 return child.name.includes(`${cleanKey}=${optionStr}`);
               }
               return false;
@@ -215,16 +286,19 @@ async function generateDocumentation() {
             const paramText = figma.createText();
             // Se encontrou a variante específica, extraimos dados dela
             paramText.characters = varianteTarget
-              ? extrairPropriedadesBasicas(varianteTarget)
-              : `Propriedade ${cleanKey}: ${optionStr}`;
+              ? await extrairPropriedadesBasicas(varianteTarget)
+              : `${cleanKey}: ${optionStr}`;
             paramText.fontSize = 12;
             paramText.fontName = { family: "Inter", style: "Regular" };
             paramText.fills = [figma.util.solidPaint("#333333")];
+            // Configurando para preencher horizontalmente
+            paramText.layoutAlign = "STRETCH";
+            paramText.textAutoResize = "HEIGHT";
+            renderHighlightText(paramText, paramText.characters);
             paramFrame.appendChild(paramText);
 
             // Card Direito (Preview)
             const prevFrame = figma.createFrame();
-            // Mesmas propriedades do PreviewFrame original
             prevFrame.name = "Preview";
             prevFrame.fills = [figma.util.solidPaint("#FFFFFF")];
             prevFrame.cornerRadius = 8;
@@ -240,7 +314,6 @@ async function generateDocumentation() {
             if (varianteTarget && varianteTarget.type === 'COMPONENT') {
               prevFrame.appendChild(varianteTarget.createInstance());
             } else {
-              // Fallback se não der match perfeito
               const fallbackText = figma.createText();
               fallbackText.characters = "Pré-visualização não encontrada.";
               fallbackText.fontSize = 12;
@@ -256,8 +329,8 @@ async function generateDocumentation() {
               (rowContent as any).layoutSizingHorizontal = "FILL";
             }
           }
-        });
-      });
+        }
+      }
 
       if (adicionouConteudo) {
         docFrame.appendChild(section);
@@ -266,12 +339,12 @@ async function generateDocumentation() {
 
     // Renderizar Estados
     if (propsEstado.length > 0) {
-      renderVariantesSection("Estados", propsEstado);
+      await renderVariantesSection("Estados", propsEstado);
     }
 
     // Renderizar Outras Variantes
     if (propsVariante.length > 0) {
-      renderVariantesSection("Variantes", propsVariante);
+      await renderVariantesSection("Variantes", propsVariante);
     }
   }
 
@@ -323,29 +396,67 @@ function createSectionFrame(titleText: string): FrameNode {
 
 /**
  * Extrai propriedades básicas de um nó para exibir como texto.
- * Em fases futuras, leremos tokens e inspecionaremos filhos (icon, label, etc).
+ * Utiliza variáveis (tokens) vinculadas às propriedades quando disponíveis.
  */
-function extrairPropriedadesBasicas(node: SceneNode): string {
-  let props = `📌 Estrutura do Nó Selecionado:\n\n`;
+async function getTokenName(node: SceneNode, propertyName: string, fallbackValue: any): Promise<string> {
+  if ('boundVariables' in node && node.boundVariables) {
+    const boundVars = (node.boundVariables as any);
+    if (boundVars[propertyName] && boundVars[propertyName].type === 'VARIABLE_ALIAS') {
+      const variable = await figma.variables.getVariableByIdAsync(boundVars[propertyName].id);
+      if (variable) {
+        return variable.name;
+      }
+    }
+  }
+  return `${fallbackValue}px`;
+}
 
-  props += `Tamanho:\n`;
-  props += `- Largura: ${node.width}px\n`;
-  props += `- Altura: ${node.height}px\n\n`;
+async function extrairPropriedadesBasicas(node: SceneNode): Promise<string> {
+  let props = ``;
+
+  const wToken = await getTokenName(node, 'width', node.width);
+  const hToken = await getTokenName(node, 'height', node.height);
+
+  props += `width: ${wToken}\n`;
+  props += `height: ${hToken}\n`;
 
   if ('layoutMode' in node && node.layoutMode !== "NONE") {
-    props += `Auto Layout:\n`;
-    props += `- Direção: ${node.layoutMode}\n`;
-    if ('paddingTop' in node) props += `- Padding: ${node.paddingTop}px (C) / ${node.paddingBottom}px (B) / ${node.paddingLeft}px (E) / ${node.paddingRight}px (D)\n`;
-    if ('itemSpacing' in node) props += `- Espaçamento: ${node.itemSpacing}px\n`;
-    props += `\n`;
+    if ('paddingTop' in node) {
+      const pt = await getTokenName(node, 'paddingTop', node.paddingTop);
+      const pb = await getTokenName(node, 'paddingBottom', node.paddingBottom);
+      const pl = await getTokenName(node, 'paddingLeft', node.paddingLeft);
+      const pr = await getTokenName(node, 'paddingRight', node.paddingRight);
+      if (pt !== '0px') props += `padding-top: ${pt}\n`;
+      if (pb !== '0px') props += `padding-bottom: ${pb}\n`;
+      if (pl !== '0px') props += `padding-left: ${pl}\n`;
+      if (pr !== '0px') props += `padding-right: ${pr}\n`;
+    }
+    if ('itemSpacing' in node) {
+      const gap = await getTokenName(node, 'itemSpacing', node.itemSpacing);
+      if (gap !== '0px') props += `gap: ${gap}\n`;
+    }
   }
 
   if ('cornerRadius' in node && typeof node.cornerRadius === 'number') {
-    props += `Estilos:\n`;
-    props += `- Border Radius: ${node.cornerRadius}px\n`;
+    const radius = await getTokenName(node, 'cornerRadius', node.cornerRadius);
+    if (radius !== '0px') props += `border-radius: ${radius}\n`;
   } else if ('cornerRadius' in node && node.cornerRadius === figma.mixed) {
-    props += `Estilos:\n`;
-    props += `- Border Radius: Variado (Mixed)\n`;
+    props += `border-radius: Variado (Mixed)\n`;
+  }
+
+  // Fills background aproximado
+  if ('fills' in node && Array.isArray(node.fills) && node.fills.length > 0) {
+    // Tentar ler a variável de fill primário
+    if ('boundVariables' in node && node.boundVariables && (node.boundVariables as any).fills) {
+      const fillsVars = (node.boundVariables as any).fills;
+      if (fillsVars.length > 0) {
+        const varId = fillsVars[0].id;
+        const variable = await figma.variables.getVariableByIdAsync(varId);
+        if (variable) {
+          props += `background-color: ${variable.name}\n`;
+        }
+      }
+    }
   }
 
   // Verificar se o nó possui propriedades de componente
@@ -357,12 +468,157 @@ function extrairPropriedadesBasicas(node: SceneNode): string {
       for (const key in cProps) {
         // Figma adiciona ids às chaves (ex: "Size#123"). Limpar string:
         const cleanKey = key.split('#')[0];
-        props += `- ${cleanKey}: ${cProps[key].value}\n`;
+        props += `${cleanKey}: ${cProps[key].value}\n`;
+      }
+    }
+  }
+
+  return props.trim() + '\n';
+}
+
+/**
+ * Pinta dinamicamente trechos de um nó de texto Baseado se são "px" (Azul) ou "Tokens" (Rosa).
+ */
+function renderHighlightText(textNode: TextNode, fullText: string) {
+  let currentIndex = 0;
+  const lines = fullText.split('\n');
+
+  for (const line of lines) {
+    const lineLength = line.length;
+    // Captura "propriedade: valor"
+    const match = line.match(/^([^:]+):\s*(.+)$/);
+    if (match) {
+      const prefix = match[1] + ':';
+      const value = match[2];
+
+      const valIndex = line.indexOf(value, prefix.length);
+      const absStart = currentIndex + valIndex;
+      const absEnd = absStart + value.length;
+
+      if (value.endsWith('px')) {
+        // Azul para números absolutos
+        textNode.setRangeFills(absStart, absEnd, [figma.util.solidPaint("#2F54EB")]);
+      } else if (value !== 'Variado (Mixed)') {
+        // Rosa para variáveis/tokens
+        textNode.setRangeFills(absStart, absEnd, [figma.util.solidPaint("#8B77FF")]);
+      }
+    }
+    currentIndex += lineLength + 1; // +1 pelo caractere de quebra de linha (\n)
+  }
+}
+
+function rgbToHex(rgb: RGB) {
+  const r = Math.round(rgb.r * 255).toString(16);
+  const g = Math.round(rgb.g * 255).toString(16);
+  const b = Math.round(rgb.b * 255).toString(16);
+  return `#${r.length === 1 ? '0' + r : r}${g.length === 1 ? '0' + g : g}${b.length === 1 ? '0' + b : b}`.toUpperCase();
+}
+
+async function extrairPropriedadesTexto(node: TextNode): Promise<string> {
+  let props = "";
+
+  if (node.fontName && typeof node.fontName !== "symbol") {
+    props += `font-family: ${node.fontName.family}\n`;
+    props += `font-weight: ${node.fontName.style}\n`;
+  }
+
+  if (typeof node.fontSize === 'number') {
+    const sizeToken = await getTokenName(node, 'fontSize', node.fontSize);
+    props += `font-size: ${sizeToken}\n`;
+  }
+
+  if (node.lineHeight && typeof node.lineHeight !== "symbol" && node.lineHeight.unit !== "AUTO") {
+    const lhToken = await getTokenName(node, 'lineHeight', Math.round(node.lineHeight.value));
+    props += `line-height: ${lhToken}\n`;
+  }
+
+  if ('fills' in node && Array.isArray(node.fills) && node.fills.length > 0) {
+    if ('boundVariables' in node && node.boundVariables && (node.boundVariables as any).fills) {
+      const fillsVars = (node.boundVariables as any).fills;
+      if (fillsVars.length > 0) {
+        const varId = fillsVars[0].id;
+        const variable = await figma.variables.getVariableByIdAsync(varId);
+        if (variable) {
+          props += `color: ${variable.name}\n`;
+        }
+      }
+    } else {
+      const paint = node.fills[0];
+      if (paint.type === "SOLID") {
+        const hex = rgbToHex(paint.color);
+        props += `color: ${hex}\n`;
       }
     }
   }
 
   return props;
+}
+
+async function appendSpecGroup(parentFrame: FrameNode, index: number, title: string, targetNode: SceneNode) {
+  const groupFrame = figma.createFrame();
+  groupFrame.name = `SpecGroup-${index}`;
+  groupFrame.layoutMode = "VERTICAL";
+  groupFrame.layoutAlign = "STRETCH";
+  groupFrame.itemSpacing = 16;
+  groupFrame.fills = [];
+
+  // Title Row
+  const titleRow = figma.createFrame();
+  titleRow.layoutMode = "HORIZONTAL";
+  titleRow.itemSpacing = 8;
+  titleRow.counterAxisAlignItems = "CENTER";
+  titleRow.fills = [];
+
+  // Circle Pin Frame
+  const pinFrame = figma.createFrame();
+  pinFrame.resize(24, 24);
+  pinFrame.cornerRadius = 12;
+  pinFrame.fills = [figma.util.solidPaint("#2C2C2E")];
+  pinFrame.layoutMode = "VERTICAL";
+  pinFrame.primaryAxisAlignItems = "CENTER";
+  pinFrame.counterAxisAlignItems = "CENTER";
+
+  const pinText = figma.createText();
+  pinText.characters = index.toString();
+  pinText.fontSize = 12;
+  pinText.fontName = { family: "Inter", style: "Bold" };
+  pinText.fills = [figma.util.solidPaint("#FFFFFF")];
+  pinFrame.appendChild(pinText);
+
+  const titleText = figma.createText();
+  titleText.characters = title;
+  titleText.fontSize = 16;
+  titleText.fontName = { family: "Inter", style: "Bold" };
+  titleText.fills = [figma.util.solidPaint("#1A1A1A")];
+
+  titleRow.appendChild(pinFrame);
+  titleRow.appendChild(titleText);
+  groupFrame.appendChild(titleRow);
+
+  // Properties Text
+  const propsText = figma.createText();
+
+  let propsString = await extrairPropriedadesBasicas(targetNode);
+  if (targetNode.type === "TEXT") {
+    propsString += await extrairPropriedadesTexto(targetNode as TextNode);
+  }
+
+  if (propsString.trim().length === 0) {
+    propsString = "Nenhuma propriedade encontrada.";
+  }
+
+  propsText.characters = propsString;
+  propsText.fontSize = 14;
+  propsText.fontName = { family: "Inter", style: "Regular" };
+  propsText.lineHeight = { value: 150, unit: "PERCENT" };
+  propsText.fills = [figma.util.solidPaint("#333333")];
+  propsText.layoutAlign = "STRETCH";
+  propsText.textAutoResize = "HEIGHT";
+
+  renderHighlightText(propsText, propsText.characters);
+  groupFrame.appendChild(propsText);
+
+  parentFrame.appendChild(groupFrame);
 }
 
 generateDocumentation();
