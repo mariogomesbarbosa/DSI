@@ -404,7 +404,8 @@ async function getTokenName(node: SceneNode, propertyName: string, fallbackValue
     if (boundVars[propertyName] && boundVars[propertyName].type === 'VARIABLE_ALIAS') {
       const variable = await figma.variables.getVariableByIdAsync(boundVars[propertyName].id);
       if (variable) {
-        return variable.name;
+        const cleanTokenName = variable.name.split('/').pop() || variable.name;
+        return `${cleanTokenName} (${fallbackValue}px)`;
       }
     }
   }
@@ -446,15 +447,27 @@ async function extrairPropriedadesBasicas(node: SceneNode): Promise<string> {
 
   // Fills background aproximado
   if ('fills' in node && Array.isArray(node.fills) && node.fills.length > 0) {
-    // Tentar ler a variável de fill primário
     if ('boundVariables' in node && node.boundVariables && (node.boundVariables as any).fills) {
       const fillsVars = (node.boundVariables as any).fills;
       if (fillsVars.length > 0) {
         const varId = fillsVars[0].id;
         const variable = await figma.variables.getVariableByIdAsync(varId);
         if (variable) {
-          props += `background-color: ${variable.name}\n`;
+          const cleanName = variable.name.split('/').pop() || variable.name;
+          // Pegar fill atual para colocar no parêntese
+          const paint = node.fills[0];
+          let fallbackColor = "";
+          if (paint && paint.type === "SOLID") {
+            fallbackColor = rgbToHex(paint.color);
+          }
+          props += `background-color: ${cleanName} (${fallbackColor})\n`;
         }
+      }
+    } else {
+      const paint = node.fills[0];
+      if (paint && paint.type === "SOLID") {
+        const hex = rgbToHex(paint.color);
+        props += `background-color: ${hex}\n`;
       }
     }
   }
@@ -465,7 +478,7 @@ async function extrairPropriedadesBasicas(node: SceneNode): Promise<string> {
 }
 
 /**
- * Pinta dinamicamente trechos de um nó de texto Baseado se são "px" (Azul) ou "Tokens" (Rosa).
+ * Pinta dinamicamente trechos de um nó de texto Baseado se são "px" (Azul) ou "Tokens" (Rosa + Underline).
  */
 function renderHighlightText(textNode: TextNode, fullText: string) {
   let currentIndex = 0;
@@ -474,21 +487,44 @@ function renderHighlightText(textNode: TextNode, fullText: string) {
   for (const line of lines) {
     const lineLength = line.length;
     // Captura "propriedade: valor"
-    const match = line.match(/^([^:]+):\s*(.+)$/);
-    if (match) {
-      const prefix = match[1] + ':';
-      const value = match[2];
+    const matchLine = line.match(/^([^:]+):\s*(.+)$/);
+    if (matchLine) {
+      const prefix = matchLine[1] + ':';
+      let value = matchLine[2]; // ex: "button-px-lg (12px)" ou "12px" ou "Variado (Mixed)"
+
+      // Valida padrão "Nome Do Token (valor)"
+      const matchToken = value.match(/^(.+?)\s*\((.+?)\)$/);
 
       const valIndex = line.indexOf(value, prefix.length);
       const absStart = currentIndex + valIndex;
-      const absEnd = absStart + value.length;
 
-      if (value.endsWith('px')) {
-        // Azul para números absolutos
-        textNode.setRangeFills(absStart, absEnd, [figma.util.solidPaint("#2F54EB")]);
-      } else if (value !== 'Variado (Mixed)') {
-        // Rosa para variáveis/tokens
-        textNode.setRangeFills(absStart, absEnd, [figma.util.solidPaint("#8B77FF")]);
+      if (matchToken) {
+        const tokenName = matchToken[1];
+        const innerValue = matchToken[2]; // "12px" ou "#FFF"
+
+        const tokenStart = absStart;
+        const tokenEnd = absStart + tokenName.length;
+
+        const parensOffset = line.indexOf('(', valIndex);
+        const parensEndOffset = line.indexOf(')', parensOffset);
+
+        // Pintando Token de Roxo/Rosa e Sublinhando
+        textNode.setRangeFills(tokenStart, tokenEnd, [figma.util.solidPaint("#8B77FF")]);
+        textNode.setRangeTextDecoration(tokenStart, tokenEnd, "UNDERLINE");
+
+        // Pintando o fallback Value entre parênteses em Azul (se conter px) ou apenas cor padrão
+        const fallbackStart = currentIndex + parensOffset + 1; // +1 pra pular paren aberto
+        const fallbackEnd = currentIndex + parensEndOffset;
+        if (innerValue.endsWith('px') || innerValue.startsWith('#') || innerValue.startsWith('Variado')) {
+          textNode.setRangeFills(fallbackStart, fallbackEnd, [figma.util.solidPaint("#2F54EB")]);
+        }
+      } else {
+        // Valores fixos tradicionais não-tokens
+        const absEnd = absStart + value.length;
+        if (value.endsWith('px') || value.startsWith('#')) {
+          // Azul para números absolutos ou Hex
+          textNode.setRangeFills(absStart, absEnd, [figma.util.solidPaint("#2F54EB")]);
+        }
       }
     }
     currentIndex += lineLength + 1; // +1 pelo caractere de quebra de linha (\n)
@@ -527,7 +563,11 @@ async function extrairPropriedadesTexto(node: TextNode): Promise<string> {
         const varId = fillsVars[0].id;
         const variable = await figma.variables.getVariableByIdAsync(varId);
         if (variable) {
-          props += `color: ${variable.name}\n`;
+          const cleanName = variable.name.split('/').pop() || variable.name;
+          const paint = node.fills[0];
+          let fallbackColor = "";
+          if (paint && paint.type === "SOLID") { fallbackColor = rgbToHex(paint.color); }
+          props += `color: ${cleanName} (${fallbackColor})\n`;
         }
       }
     } else {
