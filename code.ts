@@ -567,6 +567,8 @@ async function appendSpecGroup(parentFrame: FrameNode, index: number, title: str
   titleRow.layoutMode = "HORIZONTAL";
   titleRow.itemSpacing = 8;
   titleRow.counterAxisAlignItems = "CENTER";
+  titleRow.primaryAxisSizingMode = "AUTO";
+  titleRow.counterAxisSizingMode = "AUTO";
   titleRow.fills = [];
 
   // Circle Pin Frame
