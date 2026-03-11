@@ -1,420 +1,79 @@
-async function generateDocumentation() {
-  const selection = figma.currentPage.selection;
+// ============================================================
+// AutoDocs Plugin v2.0 — code.ts
+// Gera documentação estruturada de componentes Figma via ChatGPT
+// ============================================================
 
-  if (selection.length === 0) {
-    figma.notify("Por favor, selecione um Componente, Conjunto de Componentes ou Instância.");
-    figma.closePlugin();
-    return;
-  }
+// --- Tipos auxiliares ---
 
-  const node = selection[0];
+interface ComponentData {
+  name: string;
+  nodeType: string;
+  description: string;
+  variants: VariantInfo[];
+  states: StateInfo[];
+  anatomy: AnatomyPart[];
+  sizingVariants: string[];
+}
 
-  if (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET' && node.type !== 'INSTANCE') {
-    figma.notify("O item selecionado não é um Componente ou Instância.");
-    figma.closePlugin();
-    return;
-  }
+interface VariantInfo {
+  name: string;
+  propKey: string;
+  value: string;
+}
 
-  // Carregar fontes necessárias
-  await figma.loadFontAsync({ family: "Inter", style: "Regular" });
-  await figma.loadFontAsync({ family: "Inter", style: "Bold" });
-  await figma.loadFontAsync({ family: "Inter", style: "Medium" });
+interface StateInfo {
+  variantName: string;
+  states: string[];
+}
 
-  // Criar Frame Principal (Container da Documentação)
-  const docFrame = figma.createFrame();
-  docFrame.name = `Docs - ${node.name}`;
-  docFrame.layoutMode = "VERTICAL";
-  docFrame.primaryAxisSizingMode = "AUTO";
-  docFrame.counterAxisSizingMode = "FIXED";
-  docFrame.resize(1000, 100); // 1000px de largura fixa, altura auto
-  docFrame.fills = [figma.util.solidPaint("#F5F5F5")]; // Fundo cinza claro
-  docFrame.paddingTop = 60;
-  docFrame.paddingBottom = 60;
-  docFrame.paddingLeft = 60;
-  docFrame.paddingRight = 60;
-  docFrame.itemSpacing = 40;
+interface AnatomyPart {
+  index: number;
+  layerName: string;
+  layerType: string;
+}
 
-  // Adicionar Título Principal
-  const title = figma.createText();
-  title.characters = node.name;
-  title.fontSize = 32;
-  title.fontName = { family: "Inter", style: "Bold" };
-  title.fills = [figma.util.solidPaint("#1A1A1A")];
-  docFrame.appendChild(title);
-
-  // Adicionar Seção "Sobre"
-  const sectionSobre = createSectionFrame("Sobre");
-  const descriptionText = (node as any).description
-    ? (node as any).description
-    : "Descrição não fornecida no componente Figma. Use o painel direito do Figma para adicionar uma descrição ao componente principal.";
-
-  const textSobre = figma.createText();
-  textSobre.characters = descriptionText;
-  textSobre.fontSize = 16;
-  textSobre.fontName = { family: "Inter", style: "Regular" };
-  textSobre.fills = [figma.util.solidPaint("#333333")];
-  textSobre.layoutAlign = "STRETCH"; // Ocupar largura pai
-
-  sectionSobre.appendChild(textSobre);
-  docFrame.appendChild(sectionSobre);
-
-  // Adicionar Seção "Estrutura"
-  const sectionEstrutura = createSectionFrame("Estrutura");
-
-  // Container horizontal para Propriedades e Preview
-  const estruturaContent = figma.createFrame();
-  estruturaContent.name = "Conteúdo";
-  estruturaContent.fills = [];
-  estruturaContent.layoutMode = "HORIZONTAL";
-  estruturaContent.layoutAlign = "STRETCH";
-  (estruturaContent as FrameNode).primaryAxisSizingMode = "FIXED";
-  (estruturaContent as FrameNode).counterAxisSizingMode = "AUTO";
-  estruturaContent.itemSpacing = 20;
-
-  // Lado Esquerdo - Propriedades (Card Branco)
-  const propsFrame = figma.createFrame();
-  propsFrame.name = "Propriedades";
-  propsFrame.fills = [figma.util.solidPaint("#FFFFFF")];
-  propsFrame.cornerRadius = 8;
-  propsFrame.layoutMode = "VERTICAL";
-  propsFrame.layoutGrow = 1; // Divide espaço com o preview
-  propsFrame.paddingTop = 24;
-  propsFrame.paddingBottom = 24;
-  propsFrame.paddingLeft = 24;
-  propsFrame.paddingRight = 24;
-  propsFrame.itemSpacing = 24;
-
-  // 1. Lado Esquerdo - Extração Hierárquica (Estrutura, Icons, Labels)
-  let badgeIndex = 1;
-  const targetForSpecs = node.type === 'COMPONENT_SET' ? node.defaultVariant : node;
-
-  await appendSpecGroup(propsFrame, badgeIndex, "Estrutura", targetForSpecs);
-  const mainBadge = badgeIndex++;
-
-  let leftBadge = -1;
-  let rightBadge = -1;
-
-  if ('children' in targetForSpecs) {
-    for (const child of targetForSpecs.children) {
-      if (child.type === 'TEXT') {
-        leftBadge = leftBadge === -1 ? badgeIndex : leftBadge;
-        await appendSpecGroup(propsFrame, badgeIndex++, "Label", child);
-      } else if (child.type === 'INSTANCE' || child.type === 'VECTOR' || child.type === 'BOOLEAN_OPERATION') {
-        rightBadge = rightBadge === -1 ? badgeIndex : rightBadge;
-        await appendSpecGroup(propsFrame, badgeIndex++, "Icon", child);
-      }
-    }
-  }
-
-  // Lado Direito - Preview (Card Branco)
-  const previewFrame = figma.createFrame();
-  previewFrame.name = "Preview";
-  previewFrame.fills = [figma.util.solidPaint("#FFFFFF")];
-  previewFrame.cornerRadius = 8;
-  previewFrame.layoutMode = "VERTICAL";
-  previewFrame.layoutGrow = 1;
-  previewFrame.layoutAlign = "STRETCH";
-  previewFrame.primaryAxisAlignItems = "CENTER";
-  previewFrame.counterAxisAlignItems = "CENTER";
-  previewFrame.paddingTop = 24;
-  previewFrame.paddingBottom = 24;
-  previewFrame.paddingLeft = 24;
-  previewFrame.paddingRight = 24;
-
-  // Clonar Componente para o Preview
-  let clone;
-  if (node.type === 'COMPONENT_SET') {
-    clone = node.defaultVariant.createInstance();
-  } else if (node.type === 'COMPONENT') {
-    clone = node.createInstance();
-  } else {
-    clone = node.clone();
-  }
-
-  // Escalar clone base se for muito extasiado
-  const MAX_W = 340;
-  const MAX_H = 340;
-  if (clone.width > MAX_W || clone.height > MAX_H) {
-    const factor = Math.min(MAX_W / clone.width, MAX_H / clone.height);
-    if ('rescale' in clone) clone.rescale(factor);
-  }
-
-  // Criar Canvas absoluto para permitir sobreposição de Pinos Livres
-  const canvasFrame = figma.createFrame();
-  canvasFrame.name = "Canvas";
-  canvasFrame.fills = [];
-
-  const pad = 60;
-  clone.x = pad;
-  clone.y = pad;
-  canvasFrame.appendChild(clone);
-  canvasFrame.resize(clone.width + pad * 2, clone.height + pad * 2);
-
-  // Lógica de Pintar Pinos (Specs) nas laterais do Componente Isolado
-  const drawPin = (num: number, position: 'top' | 'left' | 'right') => {
-    const pinFrame = figma.createFrame();
-    pinFrame.resize(24, 24);
-    pinFrame.cornerRadius = 12;
-    pinFrame.fills = [figma.util.solidPaint("#1A1A1A")];
-    pinFrame.layoutMode = "VERTICAL";
-    pinFrame.primaryAxisAlignItems = "CENTER";
-    pinFrame.counterAxisAlignItems = "CENTER";
-
-    const pinText = figma.createText();
-    pinText.characters = num.toString();
-    pinText.fontSize = 12;
-    pinText.fontName = { family: "Inter", style: "Bold" };
-    pinText.fills = [figma.util.solidPaint("#FFFFFF")];
-    pinFrame.appendChild(pinText);
-
-    const line = figma.createLine();
-    line.strokes = [figma.util.solidPaint("#1A1A1A")];
-    line.strokeWeight = 1;
-
-    if (position === 'top') {
-      pinFrame.x = pad + clone.width / 2 - 12;
-      pinFrame.y = pad - 40;
-      line.x = pad + clone.width / 2;
-      line.y = pad - 16;
-      line.resize(16, 0);
-      line.rotation = -90;
-    } else if (position === 'left') {
-      pinFrame.x = pad - 40;
-      pinFrame.y = pad + clone.height / 2 - 12;
-      line.x = pad - 16;
-      line.y = pad + clone.height / 2;
-      line.resize(16, 0);
-    } else if (position === 'right') {
-      pinFrame.x = pad + clone.width + 16;
-      pinFrame.y = pad + clone.height / 2 - 12;
-      line.x = pad + clone.width;
-      line.y = pad + clone.height / 2;
-      line.resize(16, 0);
-    }
-
-    canvasFrame.appendChild(line);
-    canvasFrame.appendChild(pinFrame);
+interface AIDocumentation {
+  whenToUse: string;
+  anatomy: { index: number; part: string; description: string }[];
+  variants: { name: string; description: string }[];
+  states: { variant: string; description: string }[];
+  hierarchy: {
+    explanation: string;
+    sizeContext: { size: string; context: string }[];
   };
-
-  // Instanciar Pinos Baseados na árvore percorrida
-  drawPin(mainBadge, 'top');
-  if (leftBadge !== -1) drawPin(leftBadge, 'left');
-  if (rightBadge !== -1) drawPin(rightBadge, 'right');
-
-  previewFrame.appendChild(canvasFrame);
-
-  // Adicionar lados ao container "Estrutura"
-  estruturaContent.appendChild(propsFrame);
-  estruturaContent.appendChild(previewFrame);
-
-  sectionEstrutura.appendChild(estruturaContent);
-  docFrame.appendChild(sectionEstrutura);
-
-  // NOVIDADE: GERAR "ESTADOS" E "VARIANTES"
-  if (node.type === 'COMPONENT_SET') {
-    const compSet = node as ComponentSetNode;
-    const propriedades = compSet.componentPropertyDefinitions;
-
-    // Arrays para guardar as propriedades classificadas
-    const propsEstado: string[] = [];
-    const propsVariante: string[] = [];
-
-    // Palavras-chave que inferem um estado (adicionar em PT e EN)
-    const keywordsEstado = ['state', 'estado', 'hover', 'pressed', 'active', 'disabled', 'focus'];
-
-    for (const key in propriedades) {
-      if (propriedades[key].type === 'VARIANT') {
-        const cleanKey = key.split('#')[0].toLowerCase();
-        // Verificar se é Estado ou Variante
-        const isEstado = keywordsEstado.some(keyword => cleanKey.includes(keyword));
-        if (isEstado) {
-          propsEstado.push(key);
-        } else {
-          propsVariante.push(key);
-        }
-      }
-    }
-
-    // Função auxiliar para renderizar uma seção de variantes (Seja Estado ou não)
-    const renderVariantesSection = async (title: string, propKeys: string[]) => {
-      const section = createSectionFrame(title);
-      let adicionouConteudo = false;
-
-      for (const propKey of propKeys) {
-        const cleanKey = propKey.split('#')[0];
-        const defaultValue = propriedades[propKey].defaultValue;
-        // As opções válidas para esta propriedade
-        const options = propriedades[propKey].variantOptions || [];
-
-        for (const optionStr of options) {
-          // Só desenhar variações que não sejam o padrão/default (Pois a default já está na 'Estrutura')
-          if (optionStr !== defaultValue && optionStr.toLowerCase() !== 'default') {
-            adicionouConteudo = true;
-
-            // Subtítulo (Nome da opção. ex: "Hover" ou "Small")
-            const titleRow = figma.createText();
-            titleRow.characters = optionStr;
-            titleRow.fontSize = 14;
-            titleRow.fontName = { family: "Inter", style: "Bold" };
-            titleRow.fills = [figma.util.solidPaint("#1A1A1A")];
-
-            section.appendChild(titleRow);
-
-            // Container Horizontal de conteúdo (idêntico ao de Estrutura)
-            const rowContent = figma.createFrame();
-            rowContent.name = `Conteudo-${optionStr}`;
-            rowContent.fills = [];
-            rowContent.layoutMode = "HORIZONTAL";
-            rowContent.layoutAlign = "STRETCH";
-            (rowContent as FrameNode).primaryAxisSizingMode = "FIXED";
-            (rowContent as FrameNode).counterAxisSizingMode = "AUTO";
-            rowContent.itemSpacing = 20;
-
-            // Encontrar o componente filho (variante) dentro do Set que corresponda
-            // a ter esta propriedade === optionStr
-            const varianteTarget = compSet.children.find(child => {
-              if (child.type === 'COMPONENT') {
-                const childProps = (child as any).componentPropertyReferences || {};
-                return child.name.includes(`${cleanKey}=${optionStr}`);
-              }
-              return false;
-            });
-
-            // Card Esquerdo (Props)
-            const paramFrame = figma.createFrame();
-            paramFrame.name = "Propriedades";
-            paramFrame.fills = [figma.util.solidPaint("#FFFFFF")];
-            paramFrame.cornerRadius = 8;
-            paramFrame.layoutMode = "VERTICAL";
-            paramFrame.layoutGrow = 1;
-            paramFrame.paddingTop = 24;
-            paramFrame.paddingBottom = 24;
-            paramFrame.paddingLeft = 24;
-            paramFrame.paddingRight = 24;
-
-            const paramText = figma.createText();
-            // Se encontrou a variante específica, extraimos dados dela
-            let props = varianteTarget
-              ? await extrairPropriedadesBasicas(varianteTarget)
-              : `${cleanKey}: ${optionStr}`;
-
-            paramText.characters = props.trim();
-            paramText.fontSize = 12;
-            paramText.fontName = { family: "Inter", style: "Regular" };
-            paramText.fills = [figma.util.solidPaint("#333333")];
-            // Configurando para preencher horizontalmente
-            paramText.layoutAlign = "STRETCH";
-            paramText.textAutoResize = "HEIGHT";
-            renderHighlightText(paramText, paramText.characters);
-            paramFrame.appendChild(paramText);
-
-            // Card Direito (Preview)
-            const prevFrame = figma.createFrame();
-            prevFrame.name = "Preview";
-            prevFrame.fills = [figma.util.solidPaint("#FFFFFF")];
-            prevFrame.cornerRadius = 8;
-            prevFrame.layoutMode = "VERTICAL";
-            prevFrame.layoutGrow = 1;
-            prevFrame.layoutAlign = "STRETCH";
-            prevFrame.primaryAxisAlignItems = "CENTER";
-            prevFrame.counterAxisAlignItems = "CENTER";
-            prevFrame.paddingTop = 24;
-            prevFrame.paddingBottom = 24;
-            prevFrame.paddingLeft = 24;
-            prevFrame.paddingRight = 24;
-
-            if (varianteTarget && varianteTarget.type === 'COMPONENT') {
-              const varClone = varianteTarget.createInstance();
-              if (varClone.width > MAX_W || varClone.height > MAX_H) {
-                const factor = Math.min(MAX_W / varClone.width, MAX_H / varClone.height);
-                if ('rescale' in varClone) varClone.rescale(factor);
-              }
-              prevFrame.appendChild(varClone);
-            } else {
-              const fallbackText = figma.createText();
-              fallbackText.characters = "Pré-visualização não encontrada.";
-              fallbackText.fontSize = 12;
-              prevFrame.appendChild(fallbackText);
-            }
-
-            rowContent.appendChild(paramFrame);
-            rowContent.appendChild(prevFrame);
-
-            section.appendChild(rowContent);
-
-            if ('layoutSizingHorizontal' in rowContent) {
-              (rowContent as any).layoutSizingHorizontal = "FILL";
-            }
-          }
-        }
-      }
-
-      if (adicionouConteudo) {
-        docFrame.appendChild(section);
-      }
-    };
-
-    // Renderizar Estados
-    if (propsEstado.length > 0) {
-      await renderVariantesSection("Estados", propsEstado);
-    }
-
-    // Renderizar Outras Variantes
-    if (propsVariante.length > 0) {
-      await renderVariantesSection("Variantes", propsVariante);
-    }
-  }
-
-  // Posicionar ao lado do nó selecionado
-  docFrame.x = node.x + node.width + 100;
-  docFrame.y = node.y;
-
-  if ('layoutSizingHorizontal' in estruturaContent) {
-    (estruturaContent as any).layoutSizingHorizontal = "FILL";
-  }
-
-  figma.currentPage.appendChild(docFrame);
-  figma.currentPage.selection = [docFrame];
-  figma.viewport.scrollAndZoomIntoView([docFrame]);
-
-  figma.closePlugin();
+  applicationRules: {
+    do: string[];
+    dont: string[];
+  };
 }
 
-/**
- * Cria um frame comum de seção com título e linha divisória
- */
-function createSectionFrame(titleText: string): FrameNode {
-  const section = figma.createFrame();
-  section.name = `Seção - ${titleText}`;
-  section.layoutMode = "VERTICAL";
-  section.layoutAlign = "STRETCH"; // Ocupa largura do pai
-  section.primaryAxisSizingMode = "AUTO";
-  section.counterAxisSizingMode = "AUTO";
-  section.fills = []; // Transparente
-  section.itemSpacing = 20;
+// --- Constantes de estilo ---
+const COLORS = {
+  bg: '#F7F7F8',
+  white: '#FFFFFF',
+  dark: '#111111',
+  darkGray: '#333333',
+  mediumGray: '#6B6B6B',
+  lightGray: '#E5E5E5',
+  border: '#EBEBEB',
+  accent: '#7C6DFF',
+  success: '#059669',
+  warning: '#C05917',
+  token: '#7C6DFF',
+  value: '#1D4ED8',
+};
 
-  // Título da Seção
-  const title = figma.createText();
-  title.characters = titleText;
-  title.fontSize = 20;
-  title.fontName = { family: "Inter", style: "Bold" };
-  title.fills = [figma.util.solidPaint("#1A1A1A")];
-  section.appendChild(title);
+// ============================================================
+// HELPERS UTILITÁRIOS
+// ============================================================
 
-  // Linha divisória
-  const divider = figma.createLine();
-  divider.layoutAlign = "STRETCH";
-  divider.strokes = [figma.util.solidPaint("#D9D9D9")];
-  divider.strokeWeight = 1;
-  section.appendChild(divider);
-
-  return section;
+function rgbToHex(rgb: RGB): string {
+  const r = Math.round(rgb.r * 255).toString(16).padStart(2, '0');
+  const g = Math.round(rgb.g * 255).toString(16).padStart(2, '0');
+  const b = Math.round(rgb.b * 255).toString(16).padStart(2, '0');
+  return `#${r}${g}${b}`.toUpperCase();
 }
 
-/**
- * Extrai propriedades básicas de um nó para exibir como texto.
- * Utiliza variáveis (tokens) vinculadas às propriedades quando disponíveis.
- */
 async function getTokenName(node: SceneNode, propertyName: string, fallbackValue: any): Promise<string> {
   if ('boundVariables' in node && node.boundVariables) {
     const boundVars = (node.boundVariables as any);
@@ -430,15 +89,14 @@ async function getTokenName(node: SceneNode, propertyName: string, fallbackValue
 }
 
 async function extrairPropriedadesBasicas(node: SceneNode): Promise<string> {
-  let props = ``;
+  let props = '';
 
-  const wToken = await getTokenName(node, 'width', node.width);
-  const hToken = await getTokenName(node, 'height', node.height);
-
+  const wToken = await getTokenName(node, 'width', Math.round(node.width));
+  const hToken = await getTokenName(node, 'height', Math.round(node.height));
   props += `width: ${wToken}\n`;
   props += `height: ${hToken}\n`;
 
-  if ('layoutMode' in node && node.layoutMode !== "NONE") {
+  if ('layoutMode' in node && node.layoutMode !== 'NONE') {
     if ('paddingTop' in node) {
       const pt = await getTokenName(node, 'paddingTop', node.paddingTop);
       const pb = await getTokenName(node, 'paddingBottom', node.paddingBottom);
@@ -455,219 +113,1103 @@ async function extrairPropriedadesBasicas(node: SceneNode): Promise<string> {
     }
   }
 
-  if ('cornerRadius' in node && typeof node.cornerRadius === 'number') {
-    const radius = await getTokenName(node, 'cornerRadius', node.cornerRadius);
-    if (radius !== '0px') props += `border-radius: ${radius}\n`;
-  } else if ('cornerRadius' in node && node.cornerRadius === figma.mixed) {
-    props += `border-radius: Variado (Mixed)\n`;
+  if ('cornerRadius' in node) {
+    if (typeof node.cornerRadius === 'number' && node.cornerRadius > 0) {
+      const radius = await getTokenName(node, 'cornerRadius', node.cornerRadius);
+      props += `border-radius: ${radius}\n`;
+    }
   }
 
-  // Fills background aproximado
   if ('fills' in node && Array.isArray(node.fills) && node.fills.length > 0) {
     if ('boundVariables' in node && node.boundVariables && (node.boundVariables as any).fills) {
       const fillsVars = (node.boundVariables as any).fills;
       if (fillsVars.length > 0) {
-        const varId = fillsVars[0].id;
-        const variable = await figma.variables.getVariableByIdAsync(varId);
+        const variable = await figma.variables.getVariableByIdAsync(fillsVars[0].id);
         if (variable) {
           const cleanName = variable.name.split('/').pop() || variable.name;
-          // Pegar fill atual para colocar no parêntese
           const paint = node.fills[0];
-          let fallbackColor = "";
-          if (paint && paint.type === "SOLID") {
-            fallbackColor = rgbToHex(paint.color);
-          }
+          const fallbackColor = (paint && paint.type === 'SOLID') ? rgbToHex(paint.color) : '';
           props += `background-color: ${cleanName} (${fallbackColor})\n`;
         }
       }
     } else {
       const paint = node.fills[0];
-      if (paint && paint.type === "SOLID") {
-        const hex = rgbToHex(paint.color);
-        props += `background-color: ${hex}\n`;
+      if (paint && paint.type === 'SOLID') {
+        props += `background-color: ${rgbToHex(paint.color)}\n`;
       }
     }
   }
 
-  // Propriedades nativas do componente removidas conforme solicitado
-
-  return props.trim() + '\n';
+  return props.trim();
 }
 
-/**
- * Pinta dinamicamente trechos de um nó de texto Baseado se são "px" (Azul) ou "Tokens" (Rosa + Underline).
- */
+async function extrairPropriedadesTexto(node: TextNode): Promise<string> {
+  let props = '';
+
+  if (node.fontName && typeof node.fontName !== 'symbol') {
+    props += `font-family: ${node.fontName.family}\n`;
+    props += `font-style: ${node.fontName.style}\n`;
+  }
+  if (typeof node.fontSize === 'number') {
+    const sizeToken = await getTokenName(node, 'fontSize', node.fontSize);
+    props += `font-size: ${sizeToken}\n`;
+  }
+  if (node.lineHeight && typeof node.lineHeight !== 'symbol' && node.lineHeight.unit !== 'AUTO') {
+    const lhToken = await getTokenName(node, 'lineHeight', Math.round(node.lineHeight.value));
+    props += `line-height: ${lhToken}\n`;
+  }
+  if ('fills' in node && Array.isArray(node.fills) && node.fills.length > 0) {
+    if ('boundVariables' in node && node.boundVariables && (node.boundVariables as any).fills) {
+      const fillsVars = (node.boundVariables as any).fills;
+      if (fillsVars.length > 0) {
+        const variable = await figma.variables.getVariableByIdAsync(fillsVars[0].id);
+        if (variable) {
+          const cleanName = variable.name.split('/').pop() || variable.name;
+          const paint = node.fills[0];
+          const fallback = (paint && paint.type === 'SOLID') ? rgbToHex(paint.color) : '';
+          props += `color: ${cleanName} (${fallback})\n`;
+        }
+      }
+    } else {
+      const paint = node.fills[0];
+      if (paint && paint.type === 'SOLID') {
+        props += `color: ${rgbToHex(paint.color)}\n`;
+      }
+    }
+  }
+  return props;
+}
+
 function renderHighlightText(textNode: TextNode, fullText: string) {
   let currentIndex = 0;
   const lines = fullText.split('\n');
 
   for (const line of lines) {
-    const lineLength = line.length;
-    // Captura "propriedade: valor"
     const matchLine = line.match(/^([^:]+):\s*(.+)$/);
     if (matchLine) {
       const prefix = matchLine[1] + ':';
-      let value = matchLine[2]; // ex: "button-px-lg (12px)" ou "12px" ou "Variado (Mixed)"
-
-      // Valida padrão "Nome Do Token (valor)"
+      const value = matchLine[2];
       const matchToken = value.match(/^(.+?)\s*\((.+?)\)$/);
-
       const valIndex = line.indexOf(value, prefix.length);
       const absStart = currentIndex + valIndex;
 
       if (matchToken) {
         const tokenName = matchToken[1];
-        const innerValue = matchToken[2]; // "12px" ou "#FFF"
-
-        const tokenStart = absStart;
+        const innerValue = matchToken[2];
         const tokenEnd = absStart + tokenName.length;
-
         const parensOffset = line.indexOf('(', valIndex);
         const parensEndOffset = line.indexOf(')', parensOffset);
-
-        // Pintando Token de Roxo/Rosa e Sublinhando
-        textNode.setRangeFills(tokenStart, tokenEnd, [figma.util.solidPaint("#8B77FF")]);
-        textNode.setRangeTextDecoration(tokenStart, tokenEnd, "UNDERLINE");
-
-        // Pintando o fallback Value entre parênteses em Azul (se conter px) ou apenas cor padrão
-        const fallbackStart = currentIndex + parensOffset + 1; // +1 pra pular paren aberto
+        textNode.setRangeFills(absStart, tokenEnd, [figma.util.solidPaint(COLORS.token)]);
+        textNode.setRangeTextDecoration(absStart, tokenEnd, 'UNDERLINE');
+        const fallbackStart = currentIndex + parensOffset + 1;
         const fallbackEnd = currentIndex + parensEndOffset;
-        if (innerValue.endsWith('px') || innerValue.startsWith('#') || innerValue.startsWith('Variado')) {
-          textNode.setRangeFills(fallbackStart, fallbackEnd, [figma.util.solidPaint("#2F54EB")]);
+        if (innerValue.endsWith('px') || innerValue.startsWith('#')) {
+          textNode.setRangeFills(fallbackStart, fallbackEnd, [figma.util.solidPaint(COLORS.value)]);
         }
       } else {
-        // Valores fixos tradicionais não-tokens
         const absEnd = absStart + value.length;
         if (value.endsWith('px') || value.startsWith('#')) {
-          // Azul para números absolutos ou Hex
-          textNode.setRangeFills(absStart, absEnd, [figma.util.solidPaint("#2F54EB")]);
+          textNode.setRangeFills(absStart, absEnd, [figma.util.solidPaint(COLORS.value)]);
         }
       }
     }
-    currentIndex += lineLength + 1; // +1 pelo caractere de quebra de linha (\n)
+    currentIndex += line.length + 1;
   }
 }
 
-function rgbToHex(rgb: RGB) {
-  const r = Math.round(rgb.r * 255).toString(16);
-  const g = Math.round(rgb.g * 255).toString(16);
-  const b = Math.round(rgb.b * 255).toString(16);
-  return `#${r.length === 1 ? '0' + r : r}${g.length === 1 ? '0' + g : g}${b.length === 1 ? '0' + b : b}`.toUpperCase();
+// ============================================================
+// HELPERS DE RENDERIZAÇÃO
+// ============================================================
+
+async function loadFonts() {
+  await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
+  await figma.loadFontAsync({ family: 'Inter', style: 'Medium' });
+  await figma.loadFontAsync({ family: 'Inter', style: 'Bold' });
 }
 
-async function extrairPropriedadesTexto(node: TextNode): Promise<string> {
-  let props = "";
+function createText(
+  characters: string,
+  size: number,
+  style: 'Regular' | 'Medium' | 'Bold',
+  color: string = COLORS.dark,
+  options?: { align?: TextNode['textAlignHorizontal']; layoutAlign?: 'INHERIT' | 'STRETCH' }
+): TextNode {
+  const t = figma.createText();
+  t.characters = characters;
+  t.fontSize = size;
+  t.fontName = { family: 'Inter', style };
+  t.fills = [figma.util.solidPaint(color)];
+  if (options?.align) t.textAlignHorizontal = options.align;
+  if (options?.layoutAlign) t.layoutAlign = options.layoutAlign;
+  return t;
+}
 
-  if (node.fontName && typeof node.fontName !== "symbol") {
-    props += `font-family: ${node.fontName.family}\n`;
-    props += `font-weight: ${node.fontName.style}\n`;
+function createFrame(name: string, options?: {
+  direction?: 'HORIZONTAL' | 'VERTICAL' | 'NONE';
+  padding?: number | [number, number, number, number]; // top, right, bottom, left
+  gap?: number;
+  fill?: string;
+  radius?: number;
+  layoutAlign?: 'INHERIT' | 'STRETCH';
+  layoutGrow?: number;
+  primaryAlign?: FrameNode['primaryAxisAlignItems'];
+  counterAlign?: FrameNode['counterAxisAlignItems'];
+  fixedWidth?: number;
+  fixedHeight?: number;
+  autoWidth?: boolean;
+  autoHeight?: boolean;
+}): FrameNode {
+  const f = figma.createFrame();
+  f.name = name;
+
+  const dir = options?.direction ?? 'VERTICAL';
+  if (dir === 'NONE') {
+    // absolute positioning
+    f.layoutMode = 'NONE';
+  } else {
+    f.layoutMode = dir;
   }
 
-  if (typeof node.fontSize === 'number') {
-    const sizeToken = await getTokenName(node, 'fontSize', node.fontSize);
-    props += `font-size: ${sizeToken}\n`;
+  f.primaryAxisSizingMode = 'AUTO';
+  f.counterAxisSizingMode = 'AUTO';
+
+  if (options?.fixedWidth !== undefined) {
+    f.counterAxisSizingMode = 'FIXED';
+    f.resize(options.fixedWidth, f.height || 1);
+  }
+  if (options?.fixedHeight !== undefined) {
+    f.primaryAxisSizingMode = 'FIXED';
+    f.resize(f.width || 1, options.fixedHeight);
   }
 
-  if (node.lineHeight && typeof node.lineHeight !== "symbol" && node.lineHeight.unit !== "AUTO") {
-    const lhToken = await getTokenName(node, 'lineHeight', Math.round(node.lineHeight.value));
-    props += `line-height: ${lhToken}\n`;
-  }
-
-  if ('fills' in node && Array.isArray(node.fills) && node.fills.length > 0) {
-    if ('boundVariables' in node && node.boundVariables && (node.boundVariables as any).fills) {
-      const fillsVars = (node.boundVariables as any).fills;
-      if (fillsVars.length > 0) {
-        const varId = fillsVars[0].id;
-        const variable = await figma.variables.getVariableByIdAsync(varId);
-        if (variable) {
-          const cleanName = variable.name.split('/').pop() || variable.name;
-          const paint = node.fills[0];
-          let fallbackColor = "";
-          if (paint && paint.type === "SOLID") { fallbackColor = rgbToHex(paint.color); }
-          props += `color: ${cleanName} (${fallbackColor})\n`;
-        }
-      }
+  if (options?.padding !== undefined) {
+    if (typeof options.padding === 'number') {
+      f.paddingTop = f.paddingBottom = f.paddingLeft = f.paddingRight = options.padding;
     } else {
-      const paint = node.fills[0];
-      if (paint.type === "SOLID") {
-        const hex = rgbToHex(paint.color);
-        props += `color: ${hex}\n`;
+      const [t, r, b, l] = options.padding;
+      f.paddingTop = t; f.paddingRight = r; f.paddingBottom = b; f.paddingLeft = l;
+    }
+  }
+
+  if (options?.gap !== undefined) f.itemSpacing = options.gap;
+
+  f.fills = options?.fill ? [figma.util.solidPaint(options.fill)] : [];
+  if (options?.radius !== undefined) f.cornerRadius = options.radius;
+  if (options?.layoutAlign !== undefined) f.layoutAlign = options.layoutAlign;
+  if (options?.layoutGrow !== undefined) f.layoutGrow = options.layoutGrow;
+  if (options?.primaryAlign !== undefined) f.primaryAxisAlignItems = options.primaryAlign;
+  if (options?.counterAlign !== undefined) f.counterAxisAlignItems = options.counterAlign;
+
+  return f;
+}
+
+function createBadge(num: number): FrameNode {
+  const badge = createFrame(`Badge-${num}`, {
+    direction: 'VERTICAL',
+    fill: COLORS.dark,
+    primaryAlign: 'CENTER',
+    counterAlign: 'CENTER',
+  });
+  badge.resize(22, 22);
+  badge.cornerRadius = 11;
+
+  const t = createText(num.toString(), 11, 'Bold', COLORS.white);
+  badge.appendChild(t);
+  return badge;
+}
+
+function createSectionFrame(titleText: string): FrameNode {
+  const section = createFrame(`Seção — ${titleText}`, {
+    direction: 'VERTICAL',
+    gap: 24,
+    layoutAlign: 'STRETCH',
+  });
+
+  const title = createText(titleText, 22, 'Bold', COLORS.dark);
+  section.appendChild(title);
+
+  const divider = figma.createLine();
+  divider.layoutAlign = 'STRETCH';
+  divider.strokes = [figma.util.solidPaint(COLORS.lightGray)];
+  divider.strokeWeight = 1;
+  section.appendChild(divider);
+
+  return section;
+}
+
+function createPreviewCard(componentNode: ComponentNode | InstanceNode): FrameNode {
+  const card = createFrame('Preview', {
+    direction: 'VERTICAL',
+    fill: COLORS.white,
+    radius: 12,
+    padding: 32,
+    primaryAlign: 'CENTER',
+    counterAlign: 'CENTER',
+    layoutAlign: 'STRETCH',
+    layoutGrow: 1,
+  });
+
+  let clone: InstanceNode;
+  if (componentNode.type === 'COMPONENT') {
+    clone = (componentNode as ComponentNode).createInstance();
+  } else {
+    clone = (componentNode as InstanceNode).clone();
+  }
+
+  const MAX = 280;
+  if (clone.width > MAX || clone.height > MAX) {
+    const factor = Math.min(MAX / clone.width, MAX / clone.height);
+    if ('rescale' in clone) clone.rescale(factor);
+  }
+
+  card.appendChild(clone);
+  return card;
+}
+
+function createDocFrame(componentName: string): FrameNode {
+  const doc = createFrame(`Docs — ${componentName}`, {
+    direction: 'VERTICAL',
+    padding: [60, 60, 80, 60],
+    gap: 64,
+    fill: COLORS.bg,
+  });
+  doc.counterAxisSizingMode = 'FIXED';
+  doc.resize(1080, 100);
+  doc.primaryAxisSizingMode = 'AUTO'; // Garante o comportamento 'Hug content' na altura
+
+  return doc;
+}
+
+// ============================================================
+// EXTRAÇÃO DE DADOS DO COMPONENTE
+// ============================================================
+
+function extractComponentData(node: ComponentNode | ComponentSetNode | InstanceNode): ComponentData {
+  const data: ComponentData = {
+    name: node.name.split('=').pop()?.trim() || node.name,
+    nodeType: node.type,
+    description: ('description' in node && node.description) ? node.description : '',
+    variants: [],
+    states: [],
+    anatomy: [],
+    sizingVariants: [],
+  };
+
+  // Extrair anatomia (camadas de nível 1 do componente principal)
+  const targetNode = node.type === 'COMPONENT_SET' ? node.defaultVariant : node;
+  if ('children' in targetNode) {
+    let idx = 1;
+    for (const child of (targetNode as any).children as SceneNode[]) {
+      data.anatomy.push({
+        index: idx++,
+        layerName: child.name,
+        layerType: child.type,
+      });
+    }
+  }
+
+  // Extrair variantes e estados (apenas COMPONENT_SET)
+  if (node.type === 'COMPONENT_SET') {
+    const compSet = node as ComponentSetNode;
+    const propDefs = compSet.componentPropertyDefinitions;
+    const STATE_KEYWORDS = ['state', 'estado', 'status', 'hover', 'pressed', 'active', 'disabled', 'focus', 'loading'];
+    const SIZE_KEYWORDS = ['size', 'tamanho', 'sizing', 'lg', 'md', 'sm', 'xl', 'xs'];
+
+    for (const key in propDefs) {
+      if (propDefs[key].type !== 'VARIANT') continue;
+      const cleanKey = key.split('#')[0];
+      const keyLower = cleanKey.toLowerCase();
+      const options: string[] = propDefs[key].variantOptions || [];
+
+      const isState = STATE_KEYWORDS.some(kw => keyLower.includes(kw));
+      const isSize = SIZE_KEYWORDS.some(kw => keyLower.includes(kw));
+
+      if (isState) {
+        data.states.push({
+          variantName: cleanKey,
+          states: options,
+        });
+      } else if (isSize) {
+        data.sizingVariants = options;
+      } else {
+        for (const opt of options) {
+          data.variants.push({ name: opt, propKey: cleanKey, value: opt });
+        }
       }
     }
   }
 
-  return props;
+  return data;
 }
 
-async function appendSpecGroup(parentFrame: FrameNode, index: number, title: string, targetNode: SceneNode) {
-  const groupFrame = figma.createFrame();
-  groupFrame.name = `SpecGroup-${index}`;
-  groupFrame.layoutMode = "VERTICAL";
-  groupFrame.layoutAlign = "STRETCH";
-  groupFrame.itemSpacing = 16;
-  groupFrame.fills = [];
+// ============================================================
+// CHAMADA AO GEMINI
+// ============================================================
 
-  // Title Row
-  const titleRow = figma.createFrame();
-  titleRow.layoutMode = "HORIZONTAL";
-  titleRow.itemSpacing = 8;
-  titleRow.counterAxisAlignItems = "CENTER";
-  titleRow.primaryAxisSizingMode = "AUTO";
-  titleRow.counterAxisSizingMode = "AUTO";
-  titleRow.fills = [];
+async function callGemini(apiKey: string, componentData: ComponentData, userDescription: string): Promise<AIDocumentation> {
+  // Limitar listas para evitar prompts muito grandes
+  const MAX_ANATOMY = 8;
+  const MAX_VARIANTS = 10;
+  const MAX_STATES = 5;
 
-  // Circle Pin Frame
-  const pinFrame = figma.createFrame();
-  pinFrame.resize(24, 24);
-  pinFrame.cornerRadius = 12;
-  pinFrame.fills = [figma.util.solidPaint("#2C2C2E")];
-  pinFrame.layoutMode = "VERTICAL";
-  pinFrame.primaryAxisAlignItems = "CENTER";
-  pinFrame.counterAxisAlignItems = "CENTER";
+  const anatomyList = componentData.anatomy.slice(0, MAX_ANATOMY);
+  const variantList = componentData.variants.slice(0, MAX_VARIANTS);
+  const stateList = componentData.states.slice(0, MAX_STATES);
 
-  const pinText = figma.createText();
-  pinText.characters = index.toString();
-  pinText.fontSize = 12;
-  pinText.fontName = { family: "Inter", style: "Bold" };
-  pinText.fills = [figma.util.solidPaint("#FFFFFF")];
-  pinFrame.appendChild(pinText);
+  const anatomyText = anatomyList.length > 0
+    ? anatomyList.map(p => `- Parte ${p.index}: ${p.layerName} (${p.layerType})`).join('\n')
+    : 'Não identificado.';
 
-  const titleText = figma.createText();
-  titleText.characters = title;
-  titleText.fontSize = 16;
-  titleText.fontName = { family: "Inter", style: "Bold" };
-  titleText.fills = [figma.util.solidPaint("#1A1A1A")];
+  const variantsText = variantList.length > 0
+    ? variantList.map(v => `- ${v.name}`).join('\n')
+    : 'Nenhuma variante.';
 
-  titleRow.appendChild(pinFrame);
-  titleRow.appendChild(titleText);
-  groupFrame.appendChild(titleRow);
+  const statesText = stateList.length > 0
+    ? stateList.map(s => `- ${s.variantName}: ${s.states.slice(0, 6).join(', ')}`).join('\n')
+    : 'Nenhum estado.';
 
-  // Properties Text
-  const propsText = figma.createText();
+  const sizingText = componentData.sizingVariants.length > 0
+    ? componentData.sizingVariants.join(', ')
+    : 'Nenhum.';
 
-  let propsString = await extrairPropriedadesBasicas(targetNode);
-  if (targetNode.type === "TEXT") {
-    propsString += await extrairPropriedadesTexto(targetNode as TextNode);
+  const prompt = `Você é um especialista em Design Systems. Gere documentação para o componente abaixo.
+
+Nome: ${componentData.name}
+Contexto: ${userDescription}
+Anatômia: ${anatomyText}
+Variantes: ${variantsText}
+Estados: ${statesText}
+Tamanhos: ${sizingText}
+
+Retorne APENAS JSON válido (sem markdown, sem blocos de código) com esta estrutura:
+{
+  "whenToUse": "2-3 parágrafos sobre quando usar",
+  "anatomy": [{"index":1,"part":"nome","description":"função"}],
+  "variants": [{"name":"nome","description":"quando usar"}],
+  "states": [{"variant":"grupo","description":"explicação dos estados"}],
+  "hierarchy": {
+    "explanation": "2 parágrafos sobre hierarquia de uso",
+    "sizeContext": [{"size":"LG — 56px","context":"onde usar"}]
+  },
+  "applicationRules": {
+    "do": ["regra 1","regra 2","regra 3"],
+    "dont": ["regra 1","regra 2","regra 3"]
   }
-
-  propsString = propsString.trim();
-
-  if (propsString.length === 0) {
-    propsString = "Nenhuma propriedade encontrada.";
-  }
-
-  propsText.characters = propsString;
-  propsText.fontSize = 14;
-  propsText.fontName = { family: "Inter", style: "Regular" };
-  propsText.lineHeight = { value: 150, unit: "PERCENT" };
-  propsText.fills = [figma.util.solidPaint("#333333")];
-  propsText.layoutAlign = "STRETCH";
-  propsText.textAutoResize = "HEIGHT";
-
-  renderHighlightText(propsText, propsText.characters);
-  groupFrame.appendChild(propsText);
-
-  parentFrame.appendChild(groupFrame);
 }
 
-generateDocumentation();
+Escreva em português brasileiro. Seja específico e técnico.`;
+
+  const model = 'gemini-2.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{ text: prompt }]
+      }],
+      generationConfig: {
+        temperature: 1,
+        maxOutputTokens: 2000,
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    const errMsg = (err as any)?.error?.message || '';
+    const errCode = (err as any)?.error?.code || response.status;
+
+    if (response.status === 429) {
+      throw new Error('Limite de requisições atingido (rate limit).\n\nAguarde alguns segundos e tente novamente.');
+    }
+    if (response.status === 400 && errMsg.includes('API_KEY')) {
+      throw new Error('Chave de API do Gemini inválida.\n\nObtena sua chave em aistudio.google.com/apikey.');
+    }
+    if (response.status === 403) {
+      throw new Error('Acesso negado.\n\nVerifique se sua chave do Gemini tem permissão para usar a API.');
+    }
+
+    throw new Error(`Erro na API Gemini (${errCode}): ${errMsg || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const parts: any[] = data?.candidates?.[0]?.content?.parts || [];
+
+  // Gemini 2.5 é um modelo de "thinking" — pode retornar múltiplos parts.
+  // Partes com thought:true são o raciocínio interno; precisamos do último part sem thought.
+  const contentPart = parts.filter((p: any) => !p.thought).pop();
+  const content: string = contentPart?.text || '';
+
+  if (!content) {
+    const finishReason = data?.candidates?.[0]?.finishReason || 'UNKNOWN';
+    throw new Error(`Gemini retornou resposta vazia (motivo: ${finishReason}). Tente novamente.`);
+  }
+
+  function extractJSON(raw: string): string {
+    // 1. Tentar extrair de bloco ```json ... ```
+    const codeBlockMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) return codeBlockMatch[1].trim();
+    // 2. Tentar extrair objeto JSON solto
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (jsonMatch) return jsonMatch[0].trim();
+    // 3. Retornar o raw (vai falhar no parse e lançar erro)
+    return raw.trim();
+  }
+
+  try {
+    return JSON.parse(extractJSON(content)) as AIDocumentation;
+  } catch {
+    throw new Error('A resposta do Gemini não estava em formato JSON válido. Tente novamente.');
+  }
+}
+
+
+// ============================================================
+// SEÇÃO: CABEÇALHO
+// ============================================================
+
+function renderHeader(parentFrame: FrameNode, componentData: ComponentData) {
+  const header = createFrame('Cabeçalho', {
+    direction: 'VERTICAL',
+    gap: 8,
+    layoutAlign: 'STRETCH',
+  });
+
+  const title = createText(componentData.name, 40, 'Bold', COLORS.dark);
+  title.layoutAlign = 'STRETCH';
+  header.appendChild(title);
+
+  if (componentData.description) {
+    const desc = createText(componentData.description, 16, 'Regular', COLORS.mediumGray);
+    desc.layoutAlign = 'STRETCH';
+    desc.textAutoResize = 'HEIGHT';
+    header.appendChild(desc);
+  }
+
+  parentFrame.appendChild(header);
+}
+
+// ============================================================
+// SEÇÃO: QUANDO USAR
+// ============================================================
+
+function renderWhenToUse(parentFrame: FrameNode, aiDocs: AIDocumentation) {
+  const section = createSectionFrame('Quando usar');
+  section.layoutAlign = 'STRETCH';
+
+  const text = createText(aiDocs.whenToUse, 16, 'Regular', COLORS.darkGray);
+  text.layoutAlign = 'STRETCH';
+  text.textAutoResize = 'HEIGHT';
+  text.lineHeight = { value: 160, unit: 'PERCENT' };
+  section.appendChild(text);
+
+  parentFrame.appendChild(section);
+}
+
+// ============================================================
+// SEÇÃO: ANATOMIA
+// ============================================================
+
+async function renderAnatomy(parentFrame: FrameNode, componentData: ComponentData, aiDocs: AIDocumentation) {
+  const section = createSectionFrame('Anatomia');
+  section.layoutAlign = 'STRETCH';
+
+  const targetNode = componentData.nodeType === 'COMPONENT_SET'
+    ? (figma.currentPage.selection[0] as ComponentSetNode).defaultVariant
+    : figma.currentPage.selection[0] as ComponentNode | InstanceNode;
+
+  // Row: Preview + Lista
+  const row = createFrame('Anatomia-Row', {
+    direction: 'HORIZONTAL',
+    gap: 24,
+    layoutAlign: 'STRETCH',
+  });
+  (row as FrameNode).primaryAxisSizingMode = 'FIXED';
+  row.layoutAlign = 'STRETCH';
+
+  // Preview com pinos
+  const previewCard = createFrame('Anatomia-Preview', {
+    direction: 'NONE',
+    fill: COLORS.white,
+    radius: 12,
+    layoutGrow: 1,
+    layoutAlign: 'STRETCH',
+  });
+  previewCard.counterAxisSizingMode = 'FIXED';
+  previewCard.resize(480, 340);
+
+  // Clonar e centralizar
+  let clone: InstanceNode | SceneNode;
+  if (targetNode.type === 'COMPONENT') {
+    clone = (targetNode as ComponentNode).createInstance();
+  } else {
+    clone = (targetNode as InstanceNode).clone();
+  }
+
+  const MAX = 240;
+  const origW = clone.width;
+  const origH = clone.height;
+  let scale = 1;
+  if (origW > MAX || origH > MAX) {
+    scale = Math.min(MAX / origW, MAX / origH);
+    if ('rescale' in clone) (clone as any).rescale(scale);
+  }
+
+  clone.x = Math.round((480 - clone.width) / 2);
+  clone.y = Math.round((340 - clone.height) / 2);
+  previewCard.appendChild(clone);
+
+  // Desenhar pinos sobre partes da anatomia
+  const PIN_SIZE = 22;
+
+  for (const part of componentData.anatomy) {
+    // Tentar achar o nó filho correspondente
+    let childNode: SceneNode | null = null;
+    if ('children' in targetNode) {
+      childNode = ((targetNode as any).children as SceneNode[]).find(c => c.name === part.layerName) || null;
+    }
+
+    let pinX: number, pinY: number;
+    if (childNode) {
+      // Posição relativa ao clone
+      const cx = clone.x + childNode.x * scale;
+      const cy = clone.y + childNode.y * scale;
+      const cw = childNode.width * scale;
+      const ch = childNode.height * scale;
+      pinX = Math.round(cx + cw / 2 - PIN_SIZE / 2);
+      pinY = Math.round(cy - PIN_SIZE - 8);
+      if (pinY < 4) pinY = Math.round(cy + ch + 8);
+    } else {
+      // Fallback: posição escalonada
+      pinX = 12 + (part.index - 1) * 36;
+      pinY = 12;
+    }
+
+    const pin = createBadge(part.index);
+    pin.x = Math.max(4, Math.min(pinX, 480 - PIN_SIZE - 4));
+    pin.y = Math.max(4, Math.min(pinY, 340 - PIN_SIZE - 4));
+    previewCard.appendChild(pin);
+  }
+
+  row.appendChild(previewCard);
+
+  // Lista de partes
+  const listCard = createFrame('Anatomia-Lista', {
+    direction: 'VERTICAL',
+    fill: COLORS.white,
+    radius: 12,
+    padding: 28,
+    gap: 20,
+    layoutGrow: 1,
+    layoutAlign: 'STRETCH',
+  });
+
+  const listTitle = createText('Partes do componente', 14, 'Bold', COLORS.mediumGray);
+  listCard.appendChild(listTitle);
+
+  for (const aiPart of aiDocs.anatomy) {
+    const partRow = createFrame(`Parte-${aiPart.index}`, {
+      direction: 'HORIZONTAL',
+      gap: 12,
+      layoutAlign: 'STRETCH',
+    });
+    (partRow as any).counterAxisAlignItems = 'MIN';
+
+    const badge = createBadge(aiPart.index);
+    partRow.appendChild(badge);
+
+    const textCol = createFrame(`Parte-${aiPart.index}-Text`, {
+      direction: 'VERTICAL',
+      gap: 2,
+      layoutGrow: 1,
+      layoutAlign: 'STRETCH',
+    });
+
+    const partName = createText(aiPart.part, 14, 'Bold', COLORS.dark);
+    partName.layoutAlign = 'STRETCH';
+    textCol.appendChild(partName);
+
+    const partDesc = createText(aiPart.description, 13, 'Regular', COLORS.mediumGray);
+    partDesc.layoutAlign = 'STRETCH';
+    partDesc.textAutoResize = 'HEIGHT';
+    partDesc.lineHeight = { value: 150, unit: 'PERCENT' };
+    textCol.appendChild(partDesc);
+
+    partRow.appendChild(textCol);
+    listCard.appendChild(partRow);
+
+    // Ajuste "Fill" após os nós terem um pai auto-layout
+    (partRow as any).layoutSizingHorizontal = 'FILL';
+    (partRow as any).layoutAlign = 'STRETCH';
+
+    (textCol as any).layoutSizingHorizontal = 'FILL';
+    (textCol as any).layoutGrow = 1;
+  }
+
+  row.appendChild(listCard);
+  section.appendChild(row);
+  parentFrame.appendChild(section);
+}
+
+// ============================================================
+// SEÇÃO: VARIANTES
+// ============================================================
+
+async function renderVariants(parentFrame: FrameNode, componentData: ComponentData, aiDocs: AIDocumentation) {
+  if (aiDocs.variants.length === 0) return;
+
+  const section = createSectionFrame('Variantes');
+  section.layoutAlign = 'STRETCH';
+
+  // Descrição geral
+  const intro = createText(
+    'Cada variante tem uma função específica e deve ser usada de forma consistente em todos os produtos.',
+    15,
+    'Regular',
+    COLORS.darkGray
+  );
+  intro.layoutAlign = 'STRETCH';
+  intro.textAutoResize = 'HEIGHT';
+  section.appendChild(intro);
+
+  // Grid de variantes
+  const grid = createFrame('Variantes-Grid', {
+    direction: 'HORIZONTAL',
+    gap: 16,
+    layoutAlign: 'STRETCH',
+  });
+  (grid as FrameNode).primaryAxisSizingMode = 'FIXED';
+  grid.layoutAlign = 'STRETCH';
+  grid.counterAxisAlignItems = 'MIN';
+
+  const compSet = figma.currentPage.selection[0] as ComponentSetNode;
+
+  for (const varInfo of aiDocs.variants) {
+    const card = createFrame(`Variante-${varInfo.name}`, {
+      direction: 'VERTICAL',
+      fill: COLORS.white,
+      radius: 12,
+      gap: 16,
+      layoutGrow: 1,
+      layoutAlign: 'STRETCH',
+    });
+
+    // Preview
+    const previewArea = createFrame(`Preview-${varInfo.name}`, {
+      direction: 'VERTICAL',
+      fill: '#F5F5F7',
+      radius: 8,
+      padding: 28,
+      primaryAlign: 'CENTER',
+      counterAlign: 'CENTER',
+      layoutAlign: 'STRETCH',
+    });
+    (previewArea as FrameNode).primaryAxisSizingMode = 'FIXED';
+    previewArea.resize(previewArea.width || 1, 120);
+
+    // Encontrar componente pelo nome da variante
+    if (componentData.nodeType === 'COMPONENT_SET' && compSet?.type === 'COMPONENT_SET') {
+      const variantNode = compSet.children.find(c =>
+        c.type === 'COMPONENT' && c.name.toLowerCase().includes(varInfo.name.toLowerCase())
+      ) as ComponentNode | undefined;
+
+      if (variantNode) {
+        const inst = variantNode.createInstance();
+        const MAX = 120;
+        if (inst.width > MAX || inst.height > MAX) {
+          const f = Math.min(MAX / inst.width, MAX / inst.height);
+          if ('rescale' in inst) inst.rescale(f);
+        }
+        previewArea.appendChild(inst);
+      } else {
+        const fallback = createText(varInfo.name, 13, 'Medium', COLORS.mediumGray);
+        previewArea.appendChild(fallback);
+      }
+    }
+
+    card.appendChild(previewArea);
+
+    // Texto
+    const textArea = createFrame(`Text-${varInfo.name}`, {
+      direction: 'VERTICAL',
+      padding: [0, 20, 20, 20],
+      gap: 6,
+      layoutAlign: 'STRETCH',
+    });
+
+    const varName = createText(varInfo.name, 15, 'Bold', COLORS.dark);
+    varName.layoutAlign = 'STRETCH';
+    textArea.appendChild(varName);
+
+    const varDesc = createText(varInfo.description, 13, 'Regular', COLORS.mediumGray);
+    varDesc.layoutAlign = 'STRETCH';
+    varDesc.textAutoResize = 'HEIGHT';
+    varDesc.lineHeight = { value: 150, unit: 'PERCENT' };
+    textArea.appendChild(varDesc);
+
+    card.appendChild(textArea);
+    grid.appendChild(card);
+  }
+
+  section.appendChild(grid);
+  parentFrame.appendChild(section);
+}
+
+// ============================================================
+// SEÇÃO: ESTADOS
+// ============================================================
+
+async function renderStates(parentFrame: FrameNode, componentData: ComponentData, aiDocs: AIDocumentation) {
+  if (componentData.states.length === 0) return;
+
+  const section = createSectionFrame('Estados');
+  section.layoutAlign = 'STRETCH';
+
+  const compSet = figma.currentPage.selection[0] as ComponentSetNode;
+
+  for (const stateGroup of componentData.states) {
+    // Card branco englobando o grupo
+    const groupCard = createFrame(`Estados-${stateGroup.variantName}`, {
+      direction: 'VERTICAL',
+      fill: COLORS.white,
+      radius: 12,
+      padding: 28,
+      gap: 20,
+      layoutAlign: 'STRETCH',
+    });
+
+    // Título do grupo
+    const groupTitle = createText(stateGroup.variantName, 15, 'Bold', COLORS.dark);
+    groupCard.appendChild(groupTitle);
+
+    // Linha horizontal com os estados
+    const statesRow = createFrame(`Estados-Row-${stateGroup.variantName}`, {
+      direction: 'HORIZONTAL',
+      gap: 24,
+      layoutAlign: 'STRETCH',
+    });
+
+    for (const stateName of stateGroup.states) {
+      const stateCol = createFrame(`Estado-${stateName}`, {
+        direction: 'VERTICAL',
+        gap: 10,
+        counterAlign: 'CENTER',
+      });
+
+      const stateLabel = createText(stateName, 12, 'Medium', COLORS.mediumGray);
+      stateCol.appendChild(stateLabel);
+
+      // Preview do estado
+      if (compSet?.type === 'COMPONENT_SET') {
+        const stateNode = compSet.children.find(c =>
+          c.type === 'COMPONENT' && c.name.toLowerCase().includes(stateName.toLowerCase())
+        ) as ComponentNode | undefined;
+
+        if (stateNode) {
+          const inst = stateNode.createInstance();
+          const MAX = 120;
+          if (inst.width > MAX || inst.height > MAX) {
+            const f = Math.min(MAX / inst.width, MAX / inst.height);
+            if ('rescale' in inst) inst.rescale(f);
+          }
+          stateCol.appendChild(inst);
+        } else {
+          const fb = createText(stateName, 11, 'Regular', COLORS.mediumGray);
+          stateCol.appendChild(fb);
+        }
+      }
+
+      statesRow.appendChild(stateCol);
+    }
+
+    groupCard.appendChild(statesRow);
+
+    // Descrição do grupo (da IA)
+    const aiStateInfo = aiDocs.states.find(s =>
+      s.variant.toLowerCase().includes(stateGroup.variantName.toLowerCase()) ||
+      stateGroup.variantName.toLowerCase().includes(s.variant.toLowerCase())
+    );
+    if (aiStateInfo) {
+      const desc = createText(aiStateInfo.description, 13, 'Regular', COLORS.mediumGray);
+      desc.layoutAlign = 'STRETCH';
+      desc.textAutoResize = 'HEIGHT';
+      desc.lineHeight = { value: 150, unit: 'PERCENT' };
+      groupCard.appendChild(desc);
+    }
+
+    section.appendChild(groupCard);
+  }
+
+  parentFrame.appendChild(section);
+}
+
+// ============================================================
+// SEÇÃO: HIERARQUIA
+// ============================================================
+
+async function renderHierarchy(parentFrame: FrameNode, componentData: ComponentData, aiDocs: AIDocumentation) {
+  const section = createSectionFrame('Hierarquia');
+  section.layoutAlign = 'STRETCH';
+
+  // Explicação geral
+  const explanation = createText(aiDocs.hierarchy.explanation, 16, 'Regular', COLORS.darkGray);
+  explanation.layoutAlign = 'STRETCH';
+  explanation.textAutoResize = 'HEIGHT';
+  explanation.lineHeight = { value: 160, unit: 'PERCENT' };
+  section.appendChild(explanation);
+
+  // Tamanho vs. Contexto (apenas se houver)
+  if (aiDocs.hierarchy.sizeContext && aiDocs.hierarchy.sizeContext.length > 0) {
+    const subCard = createFrame('Tamanho-Contexto', {
+      direction: 'VERTICAL',
+      fill: COLORS.white,
+      radius: 12,
+      padding: 28,
+      gap: 16,
+      layoutAlign: 'STRETCH',
+    });
+
+    const subTitle = createText('Tamanho vs. Contexto', 16, 'Bold', COLORS.dark);
+    subCard.appendChild(subTitle);
+
+    // Header da tabela
+    const tableHeader = createFrame('Table-Header', {
+      direction: 'HORIZONTAL',
+      gap: 0,
+      layoutAlign: 'STRETCH',
+    });
+    (tableHeader as FrameNode).primaryAxisSizingMode = 'FIXED';
+    tableHeader.layoutAlign = 'STRETCH';
+
+    const colSize = createText('Tamanho', 13, 'Bold', COLORS.dark, { layoutAlign: 'STRETCH' });
+    colSize.layoutGrow = 1;
+    const colCtx = createText('Contexto', 13, 'Bold', COLORS.dark, { layoutAlign: 'STRETCH' });
+    colCtx.layoutGrow = 1;
+    tableHeader.appendChild(colSize);
+    tableHeader.appendChild(colCtx);
+    subCard.appendChild(tableHeader);
+
+    const headerDiv = figma.createLine();
+    headerDiv.layoutAlign = 'STRETCH';
+    headerDiv.strokes = [figma.util.solidPaint(COLORS.lightGray)];
+    headerDiv.strokeWeight = 1;
+    subCard.appendChild(headerDiv);
+
+    // Linhas da tabela
+    for (const row of aiDocs.hierarchy.sizeContext) {
+      const tableRow = createFrame(`Row-${row.size}`, {
+        direction: 'HORIZONTAL',
+        gap: 0,
+        layoutAlign: 'STRETCH',
+      });
+      (tableRow as FrameNode).primaryAxisSizingMode = 'FIXED';
+      tableRow.layoutAlign = 'STRETCH';
+
+      const sizeCell = createText(row.size, 14, 'Medium', COLORS.dark);
+      sizeCell.layoutGrow = 1;
+      sizeCell.layoutAlign = 'STRETCH';
+
+      const ctxCell = createText(row.context, 14, 'Regular', COLORS.mediumGray);
+      ctxCell.layoutGrow = 1;
+      ctxCell.layoutAlign = 'STRETCH';
+      ctxCell.textAutoResize = 'HEIGHT';
+
+      tableRow.appendChild(sizeCell);
+      tableRow.appendChild(ctxCell);
+      subCard.appendChild(tableRow);
+
+      const rowDiv = figma.createLine();
+      rowDiv.layoutAlign = 'STRETCH';
+      rowDiv.strokes = [figma.util.solidPaint('#F0F0F2')];
+      rowDiv.strokeWeight = 1;
+      subCard.appendChild(rowDiv);
+    }
+
+    section.appendChild(subCard);
+  }
+
+  parentFrame.appendChild(section);
+}
+
+// ============================================================
+// SEÇÃO: REGRAS DE APLICAÇÃO
+// ============================================================
+
+function renderApplicationRules(parentFrame: FrameNode, aiDocs: AIDocumentation) {
+  const section = createSectionFrame('Regras de aplicação');
+  section.layoutAlign = 'STRETCH';
+
+  const row = createFrame('Regras-Row', {
+    direction: 'HORIZONTAL',
+    gap: 20,
+    layoutAlign: 'STRETCH',
+  });
+  (row as FrameNode).primaryAxisSizingMode = 'FIXED';
+  row.layoutAlign = 'STRETCH';
+  row.counterAxisAlignItems = 'MIN';
+
+  // Card "Use assim"
+  const doCard = createFrame('Regras-Do', {
+    direction: 'VERTICAL',
+    fill: '#F0FDF4',
+    radius: 12,
+    padding: 28,
+    gap: 16,
+    layoutGrow: 1,
+    layoutAlign: 'STRETCH',
+  });
+  doCard.strokes = [figma.util.solidPaint('#BBF7D0')];
+  doCard.strokeWeight = 1;
+
+  const doTitle = createText('✅  Use assim', 15, 'Bold', '#065F46');
+  doCard.appendChild(doTitle);
+
+  for (const rule of aiDocs.applicationRules.do) {
+    const ruleText = createText(`• ${rule}`, 14, 'Regular', '#065F46');
+    ruleText.layoutAlign = 'STRETCH';
+    ruleText.textAutoResize = 'HEIGHT';
+    ruleText.lineHeight = { value: 150, unit: 'PERCENT' };
+    doCard.appendChild(ruleText);
+  }
+
+  // Card "Não use assim"
+  const dontCard = createFrame('Regras-Dont', {
+    direction: 'VERTICAL',
+    fill: '#FFF1F2',
+    radius: 12,
+    padding: 28,
+    gap: 16,
+    layoutGrow: 1,
+    layoutAlign: 'STRETCH',
+  });
+  dontCard.strokes = [figma.util.solidPaint('#FECDD3')];
+  dontCard.strokeWeight = 1;
+
+  const dontTitle = createText('❌  Não use assim', 15, 'Bold', '#9F1239');
+  dontCard.appendChild(dontTitle);
+
+  for (const rule of aiDocs.applicationRules.dont) {
+    const ruleText = createText(`• ${rule}`, 14, 'Regular', '#9F1239');
+    ruleText.layoutAlign = 'STRETCH';
+    ruleText.textAutoResize = 'HEIGHT';
+    ruleText.lineHeight = { value: 150, unit: 'PERCENT' };
+    dontCard.appendChild(ruleText);
+  }
+
+  row.appendChild(doCard);
+  row.appendChild(dontCard);
+  section.appendChild(row);
+  parentFrame.appendChild(section);
+}
+
+// ============================================================
+// FUNÇÃO PRINCIPAL
+// ============================================================
+
+async function generateDocumentation(apiKey: string, userDescription: string) {
+  const selection = figma.currentPage.selection;
+
+  if (selection.length === 0) {
+    figma.ui.postMessage({ type: 'error', message: 'Selecione um componente no Figma antes de gerar a documentação.' });
+    return;
+  }
+
+  const node = selection[0];
+  if (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET' && node.type !== 'INSTANCE') {
+    figma.ui.postMessage({ type: 'error', message: 'O item selecionado não é um Componente ou Conjunto de Componentes.' });
+    return;
+  }
+
+  try {
+    figma.ui.postMessage({ type: 'loading-step', step: 'Carregando fontes...' });
+    await loadFonts();
+
+    figma.ui.postMessage({ type: 'loading-step', step: 'Analisando componente...' });
+    const componentData = extractComponentData(node as ComponentNode | ComponentSetNode | InstanceNode);
+
+    figma.ui.postMessage({ type: 'loading-step', step: 'Gerando textos com Gemini...' });
+    const aiDocs = await callGemini(apiKey, componentData, userDescription);
+
+    figma.ui.postMessage({ type: 'loading-step', step: 'Criando documentação no Figma...' });
+
+    // Criar frame principal
+    const docFrame = createDocFrame(componentData.name);
+
+    // Renderizar todas as seções, protegendo cada uma em try/catch para não quebrar a documentação inteira se uma parte falhar
+    renderHeader(docFrame, componentData);
+
+    try { renderWhenToUse(docFrame, aiDocs); } catch (e) { console.error('Erro ao renderizar Quando Usar', e); }
+    try { await renderAnatomy(docFrame, componentData, aiDocs); } catch (e) { console.error('Erro ao renderizar Anatomia', e); }
+    try { await renderVariants(docFrame, componentData, aiDocs); } catch (e) { console.error('Erro ao renderizar Variantes', e); }
+    try { await renderStates(docFrame, componentData, aiDocs); } catch (e) { console.error('Erro ao renderizar Estados', e); }
+    try { await renderHierarchy(docFrame, componentData, aiDocs); } catch (e) { console.error('Erro ao renderizar Hierarquia', e); }
+    try { renderApplicationRules(docFrame, aiDocs); } catch (e) { console.error('Erro ao renderizar Regras', e); }
+
+    // Aplicar FILL horizontal em todas as seções do frame principal
+    for (const child of docFrame.children) {
+      (child as any).layoutSizingHorizontal = 'FILL';
+      (child as any).layoutAlign = 'STRETCH';
+    }
+
+    // Posicionar ao lado do componente selecionado
+    docFrame.x = node.x + node.width + 120;
+    docFrame.y = node.y;
+
+    figma.currentPage.appendChild(docFrame);
+    figma.currentPage.selection = [docFrame];
+    figma.viewport.scrollAndZoomIntoView([docFrame]);
+
+    figma.ui.postMessage({ type: 'done' });
+    figma.notify('✅ Documentação gerada com sucesso!');
+    figma.closePlugin();
+
+  } catch (error: any) {
+    figma.ui.postMessage({ type: 'error', message: error?.message || 'Ocorreu um erro inesperado.' });
+  }
+}
+
+// ============================================================
+// INICIALIZAÇÃO DO PLUGIN
+// ============================================================
+
+figma.showUI(__html__, { width: 320, height: 560 });
+
+// Verificar seleção atual ao abrir
+const currentSelection = figma.currentPage.selection;
+if (currentSelection.length > 0) {
+  const n = currentSelection[0];
+  if (n.type === 'COMPONENT' || n.type === 'COMPONENT_SET' || n.type === 'INSTANCE') {
+    figma.ui.postMessage({
+      type: 'selection-info',
+      name: n.name,
+      nodeType: n.type,
+    });
+  }
+}
+
+// Escutar mudanças de seleção
+figma.on('selectionchange', () => {
+  const sel = figma.currentPage.selection;
+  if (sel.length > 0) {
+    const n = sel[0];
+    if (n.type === 'COMPONENT' || n.type === 'COMPONENT_SET' || n.type === 'INSTANCE') {
+      figma.ui.postMessage({
+        type: 'selection-info',
+        name: n.name,
+        nodeType: n.type,
+      });
+      return;
+    }
+  }
+  figma.ui.postMessage({ type: 'selection-info', name: null, nodeType: null });
+});
+
+// Receber mensagens da UI
+figma.ui.onmessage = async (msg) => {
+  if (msg.type === 'generate') {
+    await generateDocumentation(msg.apiKey, msg.description);
+  }
+};

@@ -1,17 +1,550 @@
-<h2>Rectangle Creator</h2>
-<p>Count: <input id="count" type="number" value="5"></p>
-<button id="create">Create</button>
-<button id="cancel">Cancel</button>
-<script>
+<!DOCTYPE html>
+<html lang="pt-BR">
 
-document.getElementById('create').onclick = () => {
-  const textbox = document.getElementById('count');
-  const count = parseInt(textbox.value, 10);
-  parent.postMessage({ pluginMessage: { type: 'create-shapes', count } }, '*')
-}
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoDocs</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-document.getElementById('cancel').onclick = () => {
-  parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*')
-}
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-</script>
+    :root {
+      --bg: #0F0F11;
+      --surface: #1A1A20;
+      --surface-2: #22222A;
+      --border: #2E2E3A;
+      --accent: #7C6DFF;
+      --accent-hover: #9585FF;
+      --accent-glow: rgba(124, 109, 255, 0.25);
+      --text-primary: #F0F0F5;
+      --text-secondary: #8B8B9E;
+      --text-muted: #5A5A6E;
+      --success: #34D399;
+      --error: #F87171;
+      --radius: 10px;
+      --radius-sm: 7px;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      width: 320px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent), #A78BFA);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .logo svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .header-text h1 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .header-text p {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    /* Main content */
+    .content {
+      padding: 20px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Field */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .field-label .badge {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .field-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .input-wrapper {
+      position: relative;
+    }
+
+    input[type="password"],
+    textarea {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      padding: 10px 12px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      resize: none;
+    }
+
+    input[type="password"] {
+      padding-right: 38px;
+      letter-spacing: 0.1em;
+    }
+
+    input[type="password"]::placeholder,
+    textarea::placeholder {
+      color: var(--text-muted);
+      letter-spacing: 0;
+    }
+
+    input[type="password"]:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    textarea {
+      height: 100px;
+      line-height: 1.6;
+    }
+
+    .eye-btn {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      padding: 4px;
+      border-radius: 4px;
+      transition: color 0.15s;
+    }
+
+    .eye-btn:hover {
+      color: var(--text-secondary);
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Selection info */
+    .selection-info {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .selection-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+
+    .selection-dot.active {
+      background: var(--success);
+      box-shadow: 0 0 6px rgba(52, 211, 153, 0.4);
+    }
+
+    .selection-text {
+      font-size: 12px;
+      color: var(--text-secondary);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .selection-text strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    /* Generate button */
+    .btn-generate {
+      width: 100%;
+      padding: 13px 20px;
+      background: linear-gradient(135deg, var(--accent), #9585FF);
+      border: none;
+      border-radius: var(--radius);
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px var(--accent-glow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    .btn-generate:hover:not(:disabled) {
+      opacity: 0.92;
+      box-shadow: 0 6px 24px rgba(124, 109, 255, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .btn-generate:active:not(:disabled) {
+      transform: translateY(0px);
+    }
+
+    .btn-generate:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    /* Loading state */
+    .loading-overlay {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      padding: 32px 20px;
+      text-align: center;
+    }
+
+    .loading-overlay.visible {
+      display: flex;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .loading-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .loading-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .loading-step {
+      font-size: 11px;
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    /* Error message */
+    .error-msg {
+      display: none;
+      background: rgba(248, 113, 113, 0.1);
+      border: 1px solid rgba(248, 113, 113, 0.25);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      font-size: 12px;
+      color: var(--error);
+      line-height: 1.5;
+    }
+
+    .error-msg.visible {
+      display: block;
+    }
+
+    /* Footer */
+    .footer {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .footer-hint {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .footer-hint span {
+      color: var(--accent);
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">
+      <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="2" width="6" height="6" rx="1.5" fill="white" fill-opacity="0.9" />
+        <rect x="10" y="2" width="6" height="6" rx="1.5" fill="white" fill-opacity="0.5" />
+        <rect x="2" y="10" width="6" height="6" rx="1.5" fill="white" fill-opacity="0.5" />
+        <rect x="10" y="10" width="6" height="6" rx="1.5" fill="white" fill-opacity="0.7" />
+      </svg>
+    </div>
+    <div class="header-text">
+      <h1>AutoDocs</h1>
+      <p>Documentação inteligente para componentes</p>
+    </div>
+  </div>
+
+  <!-- Main Form -->
+  <div class="content" id="form-section">
+
+    <!-- Selection Info -->
+    <div class="selection-info" id="selection-info">
+      <div class="selection-dot" id="selection-dot"></div>
+      <div class="selection-text" id="selection-text">Nenhum componente selecionado</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- API Key -->
+    <div class="field">
+      <label class="field-label" for="api-key">
+        <span class="badge"></span>
+        Chave da API Gemini
+      </label>
+      <div class="input-wrapper">
+        <input type="password" id="api-key" placeholder="AIza..." autocomplete="off" spellcheck="false" />
+        <button class="eye-btn" id="eye-btn" title="Mostrar/ocultar chave" type="button">
+          <svg id="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        </button>
+      </div>
+      <div class="field-hint">Obtenha sua chave em <a href="https://aistudio.google.com/apikey" target="_blank"
+          style="color:var(--accent);text-decoration:none">aistudio.google.com/apikey</a>. Ela não é armazenada.</div>
+    </div>
+
+    <!-- Descrição -->
+    <div class="field">
+      <label class="field-label" for="description">
+        <span class="badge"></span>
+        Descrição do componente
+      </label>
+      <textarea id="description"
+        placeholder="Ex: Botão de ação primária com variações de tamanho (SM, MD, LG) e estados (default, hover, pressed, disabled, loading). Usado para ações de alta prioridade na interface."></textarea>
+      <div class="field-hint">Descreva o contexto e propósito do componente para o ChatGPT.</div>
+    </div>
+
+    <!-- Error -->
+    <div class="error-msg" id="error-msg"></div>
+
+    <!-- Button -->
+    <button class="btn-generate" id="btn-generate">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+      </svg>
+      Gerar Documentação
+    </button>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="spinner"></div>
+    <div>
+      <div class="loading-title">Gerando documentação...</div>
+      <div class="loading-subtitle" style="margin-top:6px">Isso pode levar alguns segundos.</div>
+    </div>
+    <div class="loading-step" id="loading-step">Analisando componente...</div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span class="footer-hint">Powered by <span>Gemini</span> + Figma API</span>
+    <span class="footer-hint" id="version-tag">v2.0</span>
+  </div>
+
+  <script>
+    // --- Eye toggle ---
+    const eyeBtn = document.getElementById('eye-btn');
+    const apiKeyInput = document.getElementById('api-key');
+    eyeBtn.addEventListener('click', () => {
+      const isPassword = apiKeyInput.type === 'password';
+      apiKeyInput.type = isPassword ? 'text' : 'password';
+    });
+
+    // --- Selection state ---
+    let selectionName = null;
+    let selectionType = null;
+
+    function updateSelectionUI(name, type) {
+      const dot = document.getElementById('selection-dot');
+      const text = document.getElementById('selection-text');
+      if (name) {
+        dot.classList.add('active');
+        const typeLabel = type === 'COMPONENT_SET' ? 'Conjunto' : type === 'COMPONENT' ? 'Componente' : 'Instância';
+        text.innerHTML = `<strong>${name}</strong> <span style="color:var(--text-muted)">(${typeLabel})</span>`;
+      } else {
+        dot.classList.remove('active');
+        text.innerHTML = 'Nenhum componente selecionado';
+      }
+    }
+
+    // --- Messages from plugin ---
+    window.onmessage = (event) => {
+      const msg = event.data.pluginMessage;
+      if (!msg) return;
+
+      if (msg.type === 'selection-info') {
+        selectionName = msg.name;
+        selectionType = msg.nodeType;
+        updateSelectionUI(msg.name, msg.nodeType);
+      }
+
+      if (msg.type === 'loading-step') {
+        document.getElementById('loading-step').textContent = msg.step;
+      }
+
+      if (msg.type === 'error') {
+        showError(msg.message);
+        setLoading(false);
+      }
+
+      if (msg.type === 'done') {
+        setLoading(false);
+      }
+    };
+
+    // --- Loading state ---
+    function setLoading(loading) {
+      const form = document.getElementById('form-section');
+      const overlay = document.getElementById('loading-overlay');
+      const btn = document.getElementById('btn-generate');
+      if (loading) {
+        form.style.display = 'none';
+        overlay.classList.add('visible');
+      } else {
+        form.style.display = 'flex';
+        overlay.classList.remove('visible');
+        btn.disabled = false;
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.classList.add('visible');
+    }
+
+    function clearError() {
+      const el = document.getElementById('error-msg');
+      el.textContent = '';
+      el.classList.remove('visible');
+    }
+
+    // --- Generate button ---
+    document.getElementById('btn-generate').addEventListener('click', () => {
+      const apiKey = apiKeyInput.value.trim();
+      const description = document.getElementById('description').value.trim();
+
+      clearError();
+
+      if (!apiKey) {
+        showError('Por favor, insira sua chave da API OpenAI.');
+        return;
+      }
+      if (!selectionName) {
+        showError('Selecione um componente no Figma antes de gerar a documentação.');
+        return;
+      }
+      if (!description) {
+        showError('Por favor, adicione uma breve descrição do componente.');
+        return;
+      }
+
+      setLoading(true);
+      parent.postMessage({
+        pluginMessage: {
+          type: 'generate',
+          apiKey,
+          description,
+        }
+      }, '*');
+    });
+  </script>
+</body>
+
+</html>
