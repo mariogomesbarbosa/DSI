@@ -56,8 +56,9 @@ interface AIDocumentation {
 
 // --- Constantes de estilo ---
 const COLORS = {
-  bg: '#F7F7F8',
+  bg: '#F6F5F8',
   white: '#FFFFFF',
+  blue: '#155DFC',
   dark: '#111111',
   darkGray: '#333333',
   mediumGray: '#6B6B6B',
@@ -457,7 +458,7 @@ async function extractComponentData(node: ComponentNode | ComponentSetNode | Ins
   function collectVariables(currentNode: SceneNode) {
     if ('boundVariables' in currentNode && currentNode.boundVariables) {
       const bv = currentNode.boundVariables as any;
-      
+
       if (currentNode.type === 'TEXT' && typeof (currentNode as TextNode).textStyleId === 'string') {
         tokenIds.typographyStyles.add((currentNode as TextNode).textStyleId as string);
       }
@@ -491,8 +492,8 @@ async function extractComponentData(node: ComponentNode | ComponentSetNode | Ins
     collectVariables(node as SceneNode);
   }
 
-  async function resolveTokens(ids: Set<string>): Promise<{name: string, value: string}[]> {
-    const result: {name: string, value: string}[] = [];
+  async function resolveTokens(ids: Set<string>): Promise<{ name: string, value: string }[]> {
+    const result: { name: string, value: string }[] = [];
     for (const id of Array.from(ids)) {
       try {
         const v = await figma.variables.getVariableByIdAsync(id);
@@ -501,22 +502,22 @@ async function extractComponentData(node: ComponentNode | ComponentSetNode | Ins
           let valStr = '';
           const rawValues = Object.values(v.valuesByMode);
           let rawVal = rawValues.length > 0 ? rawValues[0] : null;
-          
+
           // Resolução recursiva de aliases
           while (rawVal && typeof rawVal === 'object' && 'type' in rawVal && (rawVal as any).type === 'VARIABLE_ALIAS') {
-             const aliasVar = await figma.variables.getVariableByIdAsync((rawVal as VariableAlias).id);
-             if (aliasVar) {
-                rawVal = Object.values(aliasVar.valuesByMode)[0];
-             } else {
-                break;
-             }
+            const aliasVar = await figma.variables.getVariableByIdAsync((rawVal as VariableAlias).id);
+            if (aliasVar) {
+              rawVal = Object.values(aliasVar.valuesByMode)[0];
+            } else {
+              break;
+            }
           }
 
           if (v.resolvedType === 'COLOR' && rawVal && typeof rawVal === 'object' && 'r' in rawVal) {
             const color = rawVal as RGBA;
             valStr = rgbToHex(color);
             if (color.a !== undefined && color.a < 1) {
-               valStr += ` (${Math.round(color.a * 100)}%)`;
+              valStr += ` (${Math.round(color.a * 100)}%)`;
             }
           } else if (v.resolvedType === 'FLOAT') {
             valStr = `${rawVal}px`;
@@ -525,7 +526,7 @@ async function extractComponentData(node: ComponentNode | ComponentSetNode | Ins
           } else {
             valStr = String(rawVal);
           }
-          
+
           result.push({ name, value: valStr });
         }
       } catch (e) {
@@ -535,8 +536,8 @@ async function extractComponentData(node: ComponentNode | ComponentSetNode | Ins
     return result.sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  async function resolveTextStyles(ids: Set<string>): Promise<{name: string, value: string}[]> {
-    const result: {name: string, value: string}[] = [];
+  async function resolveTextStyles(ids: Set<string>): Promise<{ name: string, value: string }[]> {
+    const result: { name: string, value: string }[] = [];
     for (const id of Array.from(ids)) {
       if (!id) continue;
       try {
@@ -546,7 +547,7 @@ async function extractComponentData(node: ComponentNode | ComponentSetNode | Ins
           const size = style.fontSize;
           let lhStr = 'Auto';
           if (style.lineHeight && style.lineHeight.unit !== 'AUTO') {
-            lhStr = style.lineHeight.unit === 'PIXELS' 
+            lhStr = style.lineHeight.unit === 'PIXELS'
               ? `${Math.round(style.lineHeight.value)}px`
               : `${Math.round(style.lineHeight.value)}%`;
           }
@@ -597,6 +598,7 @@ async function callGemini(apiKey: string, componentData: ComponentData, userDesc
     : 'Nenhum.';
 
   const prompt = `Você é um especialista em Design Systems. Gere documentação para o componente abaixo.
+A documentação deve ser lida de forma RÁPIDA e OBJETIVA. Use frases curtas e tópicos. Evite textos longos ou redundantes.
 
 Nome: ${componentData.name}
 Contexto: ${userDescription}
@@ -605,23 +607,23 @@ Variantes: ${variantsText}
 Estados: ${statesText}
 Tamanhos: ${sizingText}
 
-Retorne APENAS JSON válido (sem markdown, sem blocos de código) com esta estrutura:
+Retorne APENAS JSON válido com esta estrutura:
 {
-  "whenToUse": "2-3 parágrafos sobre quando usar",
-  "anatomy": [{"index":1,"part":"nome","description":"função"}],
-  "variants": [{"name":"nome","description":"quando usar"}],
-  "states": [{"variant":"grupo","description":"explicação dos estados"}],
+  "whenToUse": "1 parágrafo curto e direto (máx 3 linhas)",
+  "anatomy": [{"index":1,"part":"nome","description":"frase curta sobre a função"}],
+  "variants": [{"name":"nome","description":"frase curta sobre quando usar"}],
+  "states": [{"variant":"grupo","description":"explicação objetiva dos estados"}],
   "hierarchy": {
-    "explanation": "2 parágrafos sobre hierarquia de uso",
-    "sizeContext": [{"size":"LG — 56px","context":"onde usar"}]
+    "explanation": "1 parágrafo curto e objetivo sobre o uso",
+    "sizeContext": [{"size":"LG — 56px","context":"frase curta: onde usar"}]
   },
   "applicationRules": {
-    "do": ["regra 1","regra 2","regra 3"],
-    "dont": ["regra 1","regra 2","regra 3"]
+    "do": ["regra curta 1","regra curta 2","regra curta 3"],
+    "dont": ["regra curta 1","regra curta 2","regra curta 3"]
   }
 }
 
-Escreva em português brasileiro. Seja específico e técnico.`;
+Escreva em português brasileiro. Seja extremamente conciso.`;
 
   const model = 'gemini-2.5-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -1244,13 +1246,13 @@ function renderApplicationRules(parentFrame: FrameNode, aiDocs: AIDocumentation)
 async function renderTokens(parentFrame: FrameNode, componentData: ComponentData) {
   const { tokens } = componentData;
   const hasTokens = tokens && (tokens.typography.length > 0 || tokens.size.length > 0 || tokens.color.length > 0);
-  
+
   if (!hasTokens) return;
 
   const section = createSectionFrame('Tokens');
   section.layoutAlign = 'STRETCH';
   parentFrame.appendChild(section);
-  
+
   const intro = createText(
     'Variáveis e tokens de design aplicados na construção deste componente e suas variantes.',
     15,
@@ -1261,16 +1263,16 @@ async function renderTokens(parentFrame: FrameNode, componentData: ComponentData
   intro.textAutoResize = 'HEIGHT';
   section.appendChild(intro);
 
-  const createTokenList = (title: string, list: {name: string, value: string}[]) => {
+  const createTokenList = (title: string, list: { name: string, value: string }[]) => {
     // ... logic remains same inside ...
     if (!list || list.length === 0) return null;
-    
+
     // Container externo para as sub-sessões
     const container = createFrame(`Tokens-${title}-Group`, {
       direction: 'VERTICAL',
       layoutAlign: 'STRETCH'
     });
-    
+
     // O Card Branco
     const card = createFrame(`Tokens-${title}-Card`, {
       direction: 'VERTICAL',
@@ -1309,12 +1311,12 @@ async function renderTokens(parentFrame: FrameNode, componentData: ComponentData
 
       // Color Preview para category Color
       if (token.value.startsWith('#')) {
-         const colorSwatch = figma.createEllipse();
-         colorSwatch.resize(14, 14);
-         colorSwatch.fills = [figma.util.solidPaint(token.value.split(' ')[0])];
-         colorSwatch.strokes = [figma.util.solidPaint('rgba(0,0,0,0.1)')];
-         colorSwatch.strokeWeight = 1;
-         chip.appendChild(colorSwatch);
+        const colorSwatch = figma.createEllipse();
+        colorSwatch.resize(14, 14);
+        colorSwatch.fills = [figma.util.solidPaint(token.value.split(' ')[0])];
+        colorSwatch.strokes = [figma.util.solidPaint('rgba(0,0,0,0.1)')];
+        colorSwatch.strokeWeight = 1;
+        chip.appendChild(colorSwatch);
       }
 
       // Content: Name + Value
@@ -1322,13 +1324,13 @@ async function renderTokens(parentFrame: FrameNode, componentData: ComponentData
       chipText.characters = `${token.name} — ${token.value}`;
       chipText.fontSize = 13;
       chipText.fontName = { family: 'Inter', style: 'Medium' };
-      
+
       const namePart = token.name;
       const separator = ' — ';
       chipText.setRangeFills(0, namePart.length, [figma.util.solidPaint(COLORS.token)]);
       chipText.setRangeFills(namePart.length, namePart.length + separator.length, [figma.util.solidPaint(COLORS.mediumGray)]);
       chipText.setRangeFills(namePart.length + separator.length, chipText.characters.length, [figma.util.solidPaint(COLORS.value)]);
-      
+
       chip.appendChild(chipText);
       listFrame.appendChild(chip);
     }
