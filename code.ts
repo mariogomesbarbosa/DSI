@@ -1432,6 +1432,13 @@ async function generateDocumentation(apiKey: string, userDescription: string) {
 
 figma.showUI(__html__, { width: 320, height: 560 });
 
+// Carregar API Key salva e enviar para UI
+figma.clientStorage.getAsync('gemini-api-key').then(key => {
+  if (key) {
+    figma.ui.postMessage({ type: 'init-api-key', key });
+  }
+});
+
 // Verificar seleção atual ao abrir
 const currentSelection = figma.currentPage.selection;
 if (currentSelection.length > 0) {
@@ -1466,5 +1473,9 @@ figma.on('selectionchange', () => {
 figma.ui.onmessage = async (msg) => {
   if (msg.type === 'generate') {
     await generateDocumentation(msg.apiKey, msg.description);
+  } else if (msg.type === 'save-api-key') {
+    // Salvar API Key de forma segura no clientStorage do Figma
+    await figma.clientStorage.setAsync('gemini-api-key', msg.key);
+    figma.notify('✅ Chave da API salva localmente.');
   }
 };
