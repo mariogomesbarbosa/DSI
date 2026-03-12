@@ -1,5 +1,5 @@
 {
-  "name": "AutoDocs",
+  "name": "DSI - Documentation made easy",
   "id": "1611433086832468382",
   "api": "1.0.0",
   "main": "code.js",
@@ -12,7 +12,7 @@
   "ui": "ui.html",
   "networkAccess": {
     "allowedDomains": [
-      "none"
+      "https://generativelanguage.googleapis.com"
     ]
   }
 }

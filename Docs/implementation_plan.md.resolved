@@ -1,0 +1,169 @@
+# AutoDocs Plugin — Plano de Implementação
+
+Plugin Figma para gerar documentação estruturada de componentes usando a API do ChatGPT. O usuário seleciona um componente (ou conjunto de variantes), abre o plugin, insere a API Key do ChatGPT e uma descrição do componente. O plugin então gera um frame de documentação diretamente no Figma.
+
+## User Review Required
+
+> [!IMPORTANT]
+> O [manifest.json](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/manifest.json) precisa ser atualizado para permitir chamadas à API do ChatGPT (`https://api.openai.com`). Isso requer que o usuário tenha o plugin em modo de desenvolvimento local.
+
+> [!IMPORTANT]
+> A geração da documentação será **toda em português brasileiro**. O prompt para o ChatGPT será em PT-BR.
+
+> [!WARNING]
+> Todo o código existente em [code.ts](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts) será **reescrito do zero** (código limpo). Apenas as funções utilitárias [rgbToHex](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#551-557), [getTokenName](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#414-431), [extrairPropriedadesBasicas](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#432-496), [extrairPropriedadesTexto](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#558-601), e [renderHighlightText](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#497-550) serão **mantidas e reutilizadas** pois fazem sentido no novo contexto.
+
+---
+
+## Proposta de Estrutura de Arquivos
+
+O plugin agora terá **comunicação bidirecional** entre [ui.html](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/ui.html) (interface) e [code.ts](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts) (lógica Figma):
+
+```
+ui.html        → Formulário com API Key + descrição + botão "Gerar"
+code.ts        → Lógica principal: extração de dados do Figma + chamada ChatGPT + renderização
+```
+
+---
+
+## Proposta de Mudanças
+
+### Infraestrutura / Configuração
+
+#### [MODIFY] [manifest.json](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/manifest.json)
+- Alterar `networkAccess.allowedDomains` de `["none"]` para `["https://api.openai.com"]`
+
+---
+
+### Interface do Usuário
+
+#### [MODIFY] [ui.html](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/ui.html)
+Reescrever completamente com design premium e os campos:
+- **Campo API Key**: `<input type="password">` para colar a chave da OpenAI
+- **Campo Descrição**: `<textarea>` para o usuário descrever o componente (contexto para o ChatGPT)
+- **Botão "Gerar Documentação"**: dispara o fluxo
+- **Estado de loading**: spinner com mensagem de progresso
+- **Tratamento de erro**: mensagem de erro amigável
+
+---
+
+### Lógica Principal
+
+#### [MODIFY] [code.ts](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts)
+Reescrito com a seguinte arquitetura:
+
+```
+code.ts
+├── HELPERS REUTILIZÁVEIS (mantidos/adaptados do código anterior)
+│   ├── rgbToHex()
+│   ├── getTokenName()
+│   ├── extrairPropriedadesBasicas()
+│   ├── extrairPropriedadesTexto()
+│   └── renderHighlightText()
+│
+├── HELPERS DE RENDERIZAÇÃO (novos)
+│   ├── loadFonts()
+│   ├── createDocFrame()          — frame principal da documentação
+│   ├── createSectionFrame()      — seção com título + divider
+│   ├── createPreviewCard()       — card branco com preview do componente
+│   ├── drawAnatomyPins()         — pinos numerados sobre o componente
+│   └── callChatGPT()             — chamada à API da OpenAI
+│
+└── SEÇÕES (implementadas uma a uma)
+    ├── renderWhenToUse()         — Seção "Quando Usar"
+    ├── renderAnatomy()           — Seção "Anatomia"
+    ├── renderVariants()          — Seção "Variantes"
+    ├── renderStates()            — Seção "Estados"
+    ├── renderHierarchy()         — Seção "Hierarquia"
+    └── renderApplicationRules()  — Seção "Regras de Aplicação"
+```
+
+---
+
+## Fluxo de Funcionamento
+
+```mermaid
+sequenceDiagram
+    participant U as Usuário (Figma)
+    participant UI as ui.html
+    participant P as code.ts
+    participant AI as ChatGPT API
+
+    U->>U: Seleciona componente no Figma
+    U->>UI: Abre plugin, preenche API Key e descrição
+    U->>UI: Clica em "Gerar Documentação"
+    UI->>P: postMessage({ apiKey, description })
+    P->>P: Valida seleção no Figma
+    P->>P: Extrai dados do componente (nome, variantes, estados, árvore)
+    P->>AI: Chama ChatGPT com dados + descrição do usuário
+    AI->>P: Retorna textos gerados (JSON estruturado)
+    P->>P: Cria frame de documentação com todas as seções
+    P->>U: Volta para o Figma com o frame criado
+```
+
+---
+
+## Estrutura do Payload para o ChatGPT
+
+O plugin enviará **um único request** ao ChatGPT com todas as informações necessárias, solicitando um **JSON estruturado** como resposta:
+
+```json
+{
+  "whenToUse": "texto explicando quando usar o componente...",
+  "anatomy": [
+    { "index": 1, "part": "Structure", "description": "..." },
+    { "index": 2, "part": "Label", "description": "..." }
+  ],
+  "variants": [
+    { "name": "Primary", "description": "..." },
+    { "name": "Secondary", "description": "..." }
+  ],
+  "states": [
+    { "variant": "Primary", "states": ["Default", "Pressed", "Disabled"] }
+  ],
+  "hierarchy": {
+    "explanation": "texto geral...",
+    "sizeContext": [
+      { "size": "LG", "context": "Login, landing pages" }
+    ]
+  },
+  "applicationRules": {
+    "do": ["Use para ação principal da página"],
+    "dont": ["Não use dois botões primários na mesma tela"]
+  }
+}
+```
+
+---
+
+## Execução por Features
+
+A implementação será dividida em features independentes, entregues uma a uma:
+
+| # | Feature | Descrição |
+|---|---------|-----------|
+| 0 | **Setup** | manifest.json + ui.html + estrutura base do code.ts |
+| 1 | **Quando Usar** | Primeira seção com texto gerado pelo ChatGPT |
+| 2 | **Anatomia** | Preview visual + pins + lista de partes |
+| 3 | **Variantes** | Cards de variantes com preview + descrição |
+| 4 | **Estados** | Agrupamento de estados por variante |
+| 5 | **Hierarquia** | Hierarquia de uso + tabela de tamanho vs. contexto |
+| 6 | **Regras de Aplicação** | Cards de "use assim" e "não use assim" |
+
+---
+
+## Verificação
+
+### Manual (por feature)
+Cada feature será verificada manualmente dentro do Figma:
+1. Abrir Figma Desktop
+2. Selecionar um `COMPONENT_SET` com variantes e estados (ex: um botão)
+3. Rodar o plugin via `Plugins > Development > AutoDocs`
+4. Verificar o frame gerado na canvas
+
+### Compilação TypeScript
+```powershell
+cd "c:\Users\Sieg\Documents\SIEG\Design\Figma Plugin\AutoDocs"
+npm run build
+# ou verificar se o watch está ativo
+```

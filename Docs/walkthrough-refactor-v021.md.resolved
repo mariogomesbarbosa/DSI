@@ -1,0 +1,107 @@
+# AutoDocs v2.0 — Walkthrough: Feature 0 (Setup e Infraestrutura)
+
+## O que foi implementado
+
+A Feature 0 é a base de toda a refatoração do plugin. O código anterior foi completamente removido e reescrito com uma arquitetura limpa e escalável.
+
+---
+
+## Arquivos alterados
+
+### [manifest.json](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/manifest.json)
+- `networkAccess.allowedDomains` atualizado de `["none"]` para `["https://api.openai.com"]`
+- Necessário para que o plugin consiga chamar a API do ChatGPT
+
+### [tsconfig.json](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/tsconfig.json)
+- `target` e `lib` atualizados de `es6` para `es2017`
+- Necessário para suportar `String.prototype.padStart` e outros métodos modernos
+
+### [ui.html](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/ui.html) — Interface Premium
+Nova interface dark mode com:
+- **Logo + header** com identidade visual do plugin
+- **Indicador de seleção** — mostra em tempo real qual componente está selecionado no Figma (com dot verde animado)
+- **Campo API Key** — input `type="password"` com botão de visualizar/ocultar
+- **Campo de Descrição** — textarea com hint de exemplo
+- **Estado de loading** — spinner + mensagem de passo atual
+- **Tratamento de erros** — mensagem inline vermelha
+- **Comunicação bidirecional** com o plugin via `postMessage`
+
+### [code.ts](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts) — Arquitetura Modular
+
+#### Helpers utilitários (reutilizados e melhores)
+| Função | Descrição |
+|--------|-----------|
+| [rgbToHex()](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#70-76) | Converte RGB do Figma em hex |
+| [getTokenName()](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#77-90) | Retorna nome do token vinculado ou valor em px |
+| [extrairPropriedadesBasicas()](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#91-145) | Extrai dimensões, padding, radius e fills |
+| [extrairPropriedadesTexto()](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#146-182) | Extrai propriedades tipográficas |
+| [renderHighlightText()](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#183-219) | Coloriza tokens (roxo) e valores (azul) em TextNodes |
+
+#### Helpers de renderização (novos)
+| Função | Descrição |
+|--------|-----------|
+| [loadFonts()](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#224-229) | Pré-carrega Inter Regular/Medium/Bold |
+| [createText()](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#230-246) | Factory para TextNode com parâmetros consistentes |
+| [createFrame()](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#247-305) | Factory para FrameNode com opções de layout/padding/cor |
+| [createBadge()](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#306-320) | Círculo escuro numerado (usado em anatomia e pins) |
+| [createSectionFrame()](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#321-339) | Seção com título H2 + divisor |
+| [createPreviewCard()](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#340-368) | Card branco com preview clonado do componente |
+| [createDocFrame()](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#369-380) | Frame raiz da documentação (1080px, bg cinza) |
+
+#### Extração de dados
+[extractComponentData()](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#385-442) analisa o componente selecionado e retorna:
+- Nome, tipo e descrição
+- **Anatomia**: lista de camadas de nível 1
+- **Variantes**: propriedades que não são estado nem tamanho
+- **Estados**: propriedades com keywords (state, hover, disabled, etc.)
+- **Variantes de tamanho**: propriedades com keywords (size, SM, MD, LG, etc.)
+
+#### Integração com ChatGPT
+[callChatGPT()](file:///c:/Users/Sieg/Documents/SIEG/Design/Figma%20Plugin/AutoDocs/code.ts#447-527) envia ao `gpt-4o-mini`:
+- Nome e descrição do componente
+- Anatomia extraída
+- Variantes e estados detectados
+- Variantes de tamanho detectadas
+
+E recebe um **JSON estruturado** com:
+- `whenToUse` — texto "Quando usar"
+- `anatomy` — lista de partes com descrição
+- `variants` — lista de variantes com descrição
+- `states` — grupos de estados com descrição
+- `hierarchy` — explicação hierárquica + tabela de tamanho vs. contexto
+- `applicationRules` — listas de "use assim" e "não use assim"
+
+#### Seções de documentação (todas implementadas)
+1. **Cabeçalho** — nome grande + descrição do componente
+2. **Quando Usar** — texto gerado pela IA
+3. **Anatomia** — preview com badges numerados + lista de partes
+4. **Variantes** — grid de cards com preview e descrição
+5. **Estados** — agrupados por variante com preview de cada estado
+6. **Hierarquia** — texto + tabela "Tamanho vs. Contexto"
+7. **Regras de Aplicação** — cards verde (✅) e vermelho (❌)
+
+---
+
+## Fluxo de uso
+
+1. Usuário seleciona componente no Figma
+2. Abre o plugin → indicador de seleção ativo aparece
+3. Cola a API Key e adiciona descrição do componente
+4. Clica "Gerar Documentação"
+5. Plugin extrai dados do componente, chama ChatGPT, renderiza o frame
+6. Frame de documentação criado ao lado do componente, com zoom automático
+
+---
+
+## Build
+
+```
+npm run build  ✅ (sem erros)
+npx tsc --noEmit  ✅ (sem erros)
+```
+
+---
+
+## Próximas Features (a implementar em sequência)
+
+Todas as seções já estão implementadas nesta Feature 0. As próximas iterações serão para **refinamento visual e funcional** de cada seção individualmente.
