@@ -447,6 +447,17 @@
       <div class="field-hint">Descreva o contexto e propósito do componente para o ChatGPT.</div>
     </div>
 
+    <!-- Storybook Link -->
+    <div class="field">
+      <label class="field-label" for="storybook-link">
+        <span class="badge"></span>
+        Link do Storybook
+      </label>
+      <input type="text" id="storybook-link" placeholder="https://storybook.exemplo.com/..." 
+             style="width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-family: 'Inter', sans-serif; font-size: 13px; padding: 10px 12px; outline: none;" />
+      <div class="field-hint">Insira o link da documentação do Storybook para este componente.</div>
+    </div>
+
     <!-- Error -->
     <div class="error-msg" id="error-msg"></div>
 
@@ -574,6 +585,7 @@
     document.getElementById('btn-generate').addEventListener('click', () => {
       const apiKey = apiKeyInput.value.trim();
       const description = document.getElementById('description').value.trim();
+      const storybookLink = document.getElementById('storybook-link').value.trim();
 
       clearError();
 
@@ -596,6 +608,7 @@
           type: 'generate',
           apiKey,
           description,
+          storybookLink,
         }
       }, '*');
     });

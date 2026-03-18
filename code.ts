@@ -709,21 +709,136 @@ Escreva em português brasileiro. Seja extremamente conciso.`;
 }
 
 
-// ============================================================
-// SEÇÃO: CABEÇALHO
-// ============================================================
+// ===================================
+// Componente Customizado: Status Badge
+// ===================================
+// Cria um Component Set para o status na página de assets, se não existir
+async function getOrCreateDocStatusBadge(): Promise<ComponentSetNode> {
+  await figma.loadAllPagesAsync();
+  const COMP_NAME = 'Doc-Status-Badge';
+  const existing = figma.root.findOne(n => n.name === COMP_NAME && n.type === 'COMPONENT_SET') as ComponentSetNode;
+  if (existing) {
+    existing.children.forEach(child => {
+      if (child.type === 'COMPONENT') {
+        child.primaryAxisSizingMode = 'AUTO';
+        child.counterAxisSizingMode = 'AUTO';
+      }
+    });
+    return existing;
+  }
 
-async function renderHeader(parentFrame: FrameNode, componentData: ComponentData, aiDocs: AIDocumentation) {
-  const headerCard = createFrame('Cabeçalho-Card', {
+  const statuses = [
+    { status: 'Em design', bg: '#EFF6FF', color: '#1D4ED8' },        // Info
+    { status: 'Em desenvolvimento', bg: '#FEF3C7', color: '#B45309' }, // Warning
+    { status: 'Em validação', bg: '#F3E8FF', color: '#7E22CE' },     // Purple
+    { status: 'Publicado', bg: '#ECFDF5', color: '#047857' },        // Success
+  ];
+
+  const components: ComponentNode[] = [];
+  let x = 0;
+
+  for (const s of statuses) {
+    const comp = figma.createComponent();
+    comp.name = `Status=${s.status}`;
+    comp.layoutMode = 'HORIZONTAL';
+    comp.primaryAxisAlignItems = 'CENTER';
+    comp.counterAxisAlignItems = 'CENTER';
+    comp.primaryAxisSizingMode = 'AUTO';
+    comp.counterAxisSizingMode = 'AUTO';
+    comp.paddingLeft = 12;
+    comp.paddingRight = 12;
+    comp.paddingTop = 6;
+    comp.paddingBottom = 6;
+    comp.itemSpacing = 0;
+    comp.cornerRadius = 100;
+
+    comp.fills = [figma.util.solidPaint(s.bg)];
+    const t = createText(s.status, 13, 'Medium', s.color);
+    comp.appendChild(t);
+
+    comp.x = x;
+    components.push(comp);
+    x += comp.width + 16;
+  }
+
+  const compSet = figma.combineAsVariants(components, figma.currentPage);
+  compSet.name = COMP_NAME;
+
+  // Move para uma página de Assets para não sujar o design do usuário
+  let assetsPage = figma.root.children.find(p => p.name === '⚙️ DSI Assets');
+  if (!assetsPage) {
+    assetsPage = figma.createPage();
+    assetsPage.name = '⚙️ DSI Assets';
+  }
+  assetsPage.appendChild(compSet);
+
+  return compSet;
+}
+
+// ===================================
+// Componente Customizado: Storybook Button
+// ===================================
+
+function createStorybookButton(link: string): FrameNode {
+  const btn = createFrame('Button Storybook', {
     direction: 'HORIZONTAL',
+    padding: [8, 16, 8, 16],
+    gap: 8,
+    radius: 6,
+    fill: '#FFFFFF',
+    counterAlign: 'CENTER',
+  });
+  btn.strokes = [figma.util.solidPaint('#FF4081')];
+  btn.strokeWeight = 1;
+
+  // Icon
+  const iconSvg = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M13.7401 15.9992L2.19618 15.422C2.0317 15.4138 1.8767 15.3426 1.76328 15.2232C1.64986 15.1038 1.58671 14.9454 1.58691 14.7807V1.86307C1.58691 1.70408 1.64597 1.55076 1.75262 1.43285C1.85927 1.31494 2.00592 1.24084 2.16411 1.22494L13.708 0.0032148C13.7971 -0.00574283 13.8872 0.00406946 13.9723 0.0320196C14.0574 0.0599697 14.1357 0.105437 14.2021 0.165494C14.2686 0.22555 14.3217 0.298864 14.3581 0.38071C14.3945 0.462556 14.4134 0.551119 14.4135 0.640695V15.3585C14.4134 15.4454 14.3957 15.5314 14.3614 15.6112C14.3271 15.691 14.277 15.7631 14.214 15.8229C14.151 15.8828 14.0765 15.9292 13.9951 15.9594C13.9136 15.9896 13.8269 16.0036 13.7401 15.9992Z" fill="#FF4081"/>
+<path d="M10.5655 2.89817L10.6874 0.177656L13.0276 0.00129051L13.1302 2.8039C13.1307 2.85141 13.1124 2.89719 13.0792 2.93121C13.046 2.96523 13.0007 2.98471 13.1302 2.8039C13.1307 2.85141 13.1124 2.89719 13.0792 2.93121L12.9532 2.98539C12.9096 2.98598 12.8671 2.97173 12.8326 2.94499L11.9271 2.25684L10.8573 3.04568C10.8184 3.07389 10.7702 3.08598 10.7226 3.0794C10.675 3.07283 10.6318 3.0481 10.6021 3.0104C10.5771 2.97843 10.5642 2.93871 10.5655 2.89817ZM9.20076 7.16108C9.20076 7.47341 11.4121 7.32141 11.7096 7.10079C11.7096 4.96902 10.5104 3.84734 8.31188 3.84734C6.1179 3.84734 4.88398 4.98505 4.88398 6.69227C4.88398 9.66931 9.09174 9.72896 9.09174 11.3522C9.10344 11.4521 9.09199 11.5533 9.05827 11.6481C9.02456 11.7429 8.96947 11.8286 8.8973 11.8987C8.82512 11.9688 8.73778 12.0213 8.64205 12.0522C8.54631 12.0831 8.44475 12.0915 8.34523 12.0769C7.67376 12.0769 7.40953 11.7485 7.43903 10.639C7.43903 10.3985 4.88398 10.3222 4.80895 10.639C4.61142 13.3313 6.36481 14.1086 8.37473 14.1086C10.3212 14.1086 11.8482 13.1145 11.8482 11.3239C11.8482 8.13462 7.58141 8.21863 7.58141 6.63583C7.57542 6.53272 7.59256 6.42957 7.63159 6.33394C7.67062 6.23831 7.73054 6.15262 7.80696 6.08314C7.88339 6.01366 7.97438 5.96216 8.07329 5.9324C8.17219 5.90263 8.2765 5.89537 8.37858 5.91113C8.68514 5.91113 9.24694 5.96244 9.20076 7.16108Z" fill="#FAFAFA"/>
+</svg>`;
+  const icon = figma.createNodeFromSvg(iconSvg);
+  btn.appendChild(icon);
+
+  const label = createText('Storybook', 14, 'Medium', '#FF4081');
+  btn.appendChild(label);
+
+  if (link) {
+    btn.setRelaunchData({ open: 'Acessar documentação no Storybook' });
+    btn.setPluginData('storybookLink', link);
+    
+    // Aplicar link nativo ao texto (Hyperlink)
+    try {
+      label.setRangeHyperlink(0, label.characters.length, { type: 'URL', value: link });
+    } catch (e) {
+      console.error("Erro ao aplicar hyperlink:", e);
+    }
+  }
+
+  return btn;
+}
+
+async function renderHeader(parentFrame: FrameNode, componentData: ComponentData, aiDocs: AIDocumentation, storybookLink?: string) {
+  const headerCard = createFrame('Cabeçalho-Card', {
+    direction: 'VERTICAL',
     fill: COLORS.white,
-    gap: 24,
+    gap: 16,
     radius: 12,
     padding: 40,
     layoutAlign: 'STRETCH',
-    // primaryAlign: 'SPACE_BETWEEN',
+  });
+  parentFrame.appendChild(headerCard);
+  (headerCard as any).layoutSizingHorizontal = 'FILL';
+
+  // --- Linha Superior: Title (Esq + Logo) ---
+  const titleRow = createFrame('Title', {
+    direction: 'HORIZONTAL',
+    gap: 32,
+    padding: 0,
+    layoutAlign: 'STRETCH',
     counterAlign: 'MIN',
   });
+  headerCard.appendChild(titleRow);
+  (titleRow as any).layoutSizingHorizontal = 'FILL';
 
   const leftContent = createFrame('Cabeçalho-Esq', {
     direction: 'VERTICAL',
@@ -752,101 +867,7 @@ async function renderHeader(parentFrame: FrameNode, componentData: ComponentData
   }
 
   leftContent.appendChild(textGroup);
-
-  // ===================================
-  // Componente Customizado: Status Badge
-  // ===================================
-  // Cria um Component Set para o status na página de assets, se não existir
-  async function getOrCreateDocStatusBadge(): Promise<ComponentSetNode> {
-    await figma.loadAllPagesAsync();
-    const COMP_NAME = 'Doc-Status-Badge';
-    const existing = figma.root.findOne(n => n.name === COMP_NAME && n.type === 'COMPONENT_SET') as ComponentSetNode;
-    if (existing) {
-      existing.children.forEach(child => {
-        if (child.type === 'COMPONENT') {
-          child.primaryAxisSizingMode = 'AUTO';
-          child.counterAxisSizingMode = 'AUTO';
-        }
-      });
-      return existing;
-    }
-
-    const statuses = [
-      { status: 'Em design', bg: '#EFF6FF', color: '#1D4ED8' },        // Info
-      { status: 'Em desenvolvimento', bg: '#FEF3C7', color: '#B45309' }, // Warning
-      { status: 'Em validação', bg: '#F3E8FF', color: '#7E22CE' },     // Purple
-      { status: 'Publicado', bg: '#ECFDF5', color: '#047857' },        // Success
-    ];
-
-    const components: ComponentNode[] = [];
-    let x = 0;
-
-    for (const s of statuses) {
-      const comp = figma.createComponent();
-      comp.name = `Status=${s.status}`;
-      comp.layoutMode = 'HORIZONTAL';
-      comp.primaryAxisAlignItems = 'CENTER';
-      comp.counterAxisAlignItems = 'CENTER';
-      comp.primaryAxisSizingMode = 'AUTO';
-      comp.counterAxisSizingMode = 'AUTO';
-      comp.paddingLeft = 12;
-      comp.paddingRight = 12;
-      comp.paddingTop = 6;
-      comp.paddingBottom = 6;
-      comp.itemSpacing = 0;
-      comp.cornerRadius = 100;
-
-      comp.fills = [figma.util.solidPaint(s.bg)];
-
-      const t = createText(s.status, 13, 'Medium', s.color);
-      comp.appendChild(t);
-
-      comp.x = x;
-      components.push(comp);
-      x += comp.width + 16;
-    }
-
-    const compSet = figma.combineAsVariants(components, figma.currentPage);
-    compSet.name = COMP_NAME;
-
-    // Move para uma página de Assets para não sujar o design do usuário
-    let assetsPage = figma.root.children.find(p => p.name === '⚙️ DSI Assets');
-    if (!assetsPage) {
-      assetsPage = figma.createPage();
-      assetsPage.name = '⚙️ DSI Assets';
-    }
-    assetsPage.appendChild(compSet);
-
-    return compSet;
-  }
-
-  let badgeFrame: SceneNode;
-  try {
-    const badgeSet = await getOrCreateDocStatusBadge();
-    const inst = badgeSet.defaultVariant.createInstance();
-    inst.name = 'Status-Badge';
-    badgeFrame = inst;
-  } catch (error) {
-    console.error("Erro ao instanciar Doc-Status-Badge:", error);
-    // Fallback: renderizar o badge original manualmente
-    const fallbackFrame = createFrame('Status-Badge', {
-      direction: 'HORIZONTAL',
-      fill: '#EFF6FF',
-      radius: 100,
-      padding: [6, 12, 6, 12],
-      gap: 0,
-      counterAlign: 'CENTER',
-    });
-    fallbackFrame.primaryAxisSizingMode = 'AUTO';
-    (fallbackFrame as any).counterAxisAlignItems = 'CENTER';
-
-    const badgeText = createText('Em design', 13, 'Medium', '#1D4ED8');
-    fallbackFrame.appendChild(badgeText);
-    badgeFrame = fallbackFrame;
-  }
-
-  leftContent.appendChild(badgeFrame);
-  headerCard.appendChild(leftContent);
+  titleRow.appendChild(leftContent);
 
   // Logo DSI
   const logoFrame = createFrame('Logo', {
@@ -873,10 +894,49 @@ async function renderHeader(parentFrame: FrameNode, componentData: ComponentData
 </defs>
 </svg>`);
   logoFrame.appendChild(dsiSvg);
+  titleRow.appendChild(logoFrame);
 
-  headerCard.appendChild(logoFrame);
-  parentFrame.appendChild(headerCard);
-  (headerCard as any).layoutSizingHorizontal = 'FILL';
+  headerCard.appendChild(titleRow);
+
+  // --- Linha Inferior: Bottom (Status + Button Storybook) ---
+  const bottomRow = createFrame('Bottom', {
+    direction: 'HORIZONTAL',
+    padding: 0,
+    layoutAlign: 'STRETCH',
+    primaryAlign: 'SPACE_BETWEEN',
+    counterAlign: 'CENTER',
+  });
+  headerCard.appendChild(bottomRow);
+  (bottomRow as any).layoutSizingHorizontal = 'FILL';
+
+  // Badge Status
+  let badgeFrame: SceneNode;
+  try {
+    const badgeSet = await getOrCreateDocStatusBadge();
+    const inst = badgeSet.defaultVariant.createInstance();
+    inst.name = 'Status-Badge';
+    badgeFrame = inst;
+  } catch (error) {
+    console.error("Erro ao instanciar Doc-Status-Badge:", error);
+    const fallbackFrame = createFrame('Status-Badge', {
+      direction: 'HORIZONTAL',
+      fill: '#EFF6FF',
+      radius: 100,
+      padding: [6, 12, 6, 12],
+      gap: 0,
+      counterAlign: 'CENTER',
+    });
+    fallbackFrame.primaryAxisSizingMode = 'AUTO';
+    (fallbackFrame as any).counterAxisAlignItems = 'CENTER';
+    const badgeText = createText('Em design', 13, 'Medium', '#1D4ED8');
+    fallbackFrame.appendChild(badgeText);
+    badgeFrame = fallbackFrame;
+  }
+  bottomRow.appendChild(badgeFrame);
+
+  // Storybook Button
+  const storybookBtn = createStorybookButton(storybookLink || '');
+  bottomRow.appendChild(storybookBtn);
 }
 
 // ============================================================
@@ -1553,7 +1613,7 @@ async function renderTokens(parentFrame: FrameNode, componentData: ComponentData
 // FUNÇÃO PRINCIPAL
 // ============================================================
 
-async function generateDocumentation(apiKey: string, userDescription: string) {
+async function generateDocumentation(apiKey: string, userDescription: string, storybookLink?: string) {
   const selection = figma.currentPage.selection;
 
   if (selection.length === 0) {
@@ -1583,7 +1643,7 @@ async function generateDocumentation(apiKey: string, userDescription: string) {
     const docFrame = createDocFrame(componentData.name);
 
     // Renderizar todas as seções, protegendo cada uma em try/catch para não quebrar a documentação inteira se uma parte falhar
-    await renderHeader(docFrame, componentData, aiDocs);
+    await renderHeader(docFrame, componentData, aiDocs, storybookLink);
 
     const sectionsFrame = createFrame('Seções', {
       direction: 'VERTICAL',
@@ -1671,7 +1731,7 @@ figma.on('selectionchange', () => {
 // Receber mensagens da UI
 figma.ui.onmessage = async (msg) => {
   if (msg.type === 'generate') {
-    await generateDocumentation(msg.apiKey, msg.description);
+    await generateDocumentation(msg.apiKey, msg.description, msg.storybookLink);
   } else if (msg.type === 'save-api-key') {
     // Salvar API Key de forma segura no clientStorage do Figma
     await figma.clientStorage.setAsync('gemini-api-key', msg.key);
