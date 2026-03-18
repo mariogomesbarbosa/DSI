@@ -1,40 +1,77 @@
-Below are the steps to get your plugin running. You can also find instructions at:
+# 💎 DSI — Documentation System Interface
 
-  https://www.figma.com/plugin-docs/plugin-quickstart-guide/
+> Documentação inteligente e automática para seus componentes do Figma, alimentada por IA.
 
-This plugin template uses Typescript and NPM, two standard tools in creating JavaScript applications.
+![Banner do DSI](assets/readme-banner.png)
+*Sugestão: Insira aqui uma imagem do card de documentação gerado pelo plugin para criar impacto visual.*
 
-First, download Node.js which comes with NPM. This will allow you to install TypeScript and other
-libraries. You can find the download link here:
+---
 
-  https://nodejs.org/en/download/
+## 🚀 Sobre o Projeto
 
-Next, install TypeScript using the command:
+O **DSI** é um plugin para Figma desenvolvido para acelerar o processo de documentação de Design Systems. Ele analisa a estrutura de seus componentes, tokens de design e propriedades, utilizando a API do **Google Gemini** para gerar descrições contextuais e organizar tudo em um layout premium e pronto para uso.
 
-  npm install -g typescript
+### ✨ Principais Funcionalidades
 
-Finally, in the directory of your plugin, get the latest type definitions for the plugin API by running:
+*   **⚡ Documentação em Segundos:** Gera descrições e tabelas de propriedades automaticamente.
+*   **🏷️ Sistema de Status Dinâmico:** Inclui um componente de Badge local com 4 estados (Design, Desenvolvimento, Validação e Publicado).
+*   **🎨 Visual Anatomy:** Mapeia automaticamente a anatomia do componente no Canvas.
+*   **🔗 Design Tokens:** Documenta variáveis de cor, tipografia e espaçamento vinculadas.
+*   **🤖 Inteligência Artificial:** Integração com Gemini Pro/Flash para escrita técnica refinada.
 
-  npm install --save-dev @figma/plugin-typings
+---
 
-If you are familiar with JavaScript, TypeScript will look very familiar. In fact, valid JavaScript code
-is already valid Typescript code.
+## 🛠️ Como Instalar e Rodar
 
-TypeScript adds type annotations to variables. This allows code editors such as Visual Studio Code
-to provide information about the Figma API while you are writing code, as well as help catch bugs
-you previously didn't notice.
+1.  **Clone este repositório:**
+    ```bash
+    git clone https://github.com/mariogomesbarbosa/DSI.git
+    ```
+2.  **Instale as dependências:**
+    ```bash
+    npm install
+    ```
+3.  **No Figma:**
+    *   Vá em `Plugins` > `Development` > `Import plugin from manifest...`.
+    *   Selecione o arquivo `manifest.json` na pasta do projeto.
+4.  **Compile o código:**
+    ```bash
+    npm run watch
+    ```
 
-For more information, visit https://www.typescriptlang.org/
+---
 
-Using TypeScript requires a compiler to convert TypeScript (code.ts) into JavaScript (code.js)
-for the browser to run.
+## ⚙️ Configuração da API
 
-We recommend writing TypeScript code using Visual Studio code:
+Para utilizar as funções de IA, você precisará de uma chave da API do Google Gemini:
+1.  Obtenha sua chave em [Google AI Studio](https://aistudio.google.com/app/apikey).
+2.  No plugin, abra as configurações e salve sua chave localmente.
 
-1. Download Visual Studio Code if you haven't already: https://code.visualstudio.com/.
-2. Open this directory in Visual Studio Code.
-3. Compile TypeScript to JavaScript: Run the "Terminal > Run Build Task..." menu item,
-    then select "npm: watch". You will have to do this again every time
-    you reopen Visual Studio Code.
+---
 
-That's it! Visual Studio Code will regenerate the JavaScript file every time you save.
+## 📸 Demonstração
+
+![Interface do Plugin](assets/plugin-ui-screenshot.png)
+*Sugestão: Coloque aqui um print da interface escura (dark mode) do plugin.*
+
+![Processo de Geração](assets/generation-demo.gif)
+*Sugestão: Grave um GIF curto selecionando um componente e clicando em "Gerar Documentação".*
+
+---
+
+## 📐 Estrutura de Pastas
+
+*   `code.ts`: Lógica principal da API do Figma e manipulação de nós.
+*   `ui.html`: Interface visual (Svelte/HTML/CSS).
+*   `src/`: Assets e ícones oficiais.
+*   `⚙️ DSI Assets`: (Página no Figma) Onde os componentes auxiliares são armazenados.
+
+---
+
+## 📄 Licença
+
+Este projeto está sob a licença [MIT](LICENSE).
+
+---
+
+Desevolvido por [Mário Barbosa](https://github.com/mariogomesbarbosa).
