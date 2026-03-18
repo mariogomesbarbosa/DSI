@@ -1,5 +1,5 @@
 // ============================================================
-// AutoDocs Plugin v2.0 — code.ts
+// DSI Plugin v2.0 — code.ts
 // Gera documentação estruturada de componentes Figma via ChatGPT
 // ============================================================
 
@@ -713,14 +713,15 @@ Escreva em português brasileiro. Seja extremamente conciso.`;
 // SEÇÃO: CABEÇALHO
 // ============================================================
 
-function renderHeader(parentFrame: FrameNode, componentData: ComponentData, aiDocs: AIDocumentation) {
+async function renderHeader(parentFrame: FrameNode, componentData: ComponentData, aiDocs: AIDocumentation) {
   const headerCard = createFrame('Cabeçalho-Card', {
     direction: 'HORIZONTAL',
     fill: COLORS.white,
+    gap: 24,
     radius: 12,
     padding: 40,
     layoutAlign: 'STRETCH',
-    primaryAlign: 'SPACE_BETWEEN',
+    // primaryAlign: 'SPACE_BETWEEN',
     counterAlign: 'MIN',
   });
 
@@ -752,25 +753,97 @@ function renderHeader(parentFrame: FrameNode, componentData: ComponentData, aiDo
 
   leftContent.appendChild(textGroup);
 
-  // Status Badge
-  const badgeFrame = createFrame('Status-Badge', {
-    direction: 'HORIZONTAL',
-    fill: '#E6F8EB',
-    radius: 100,
-    padding: [6, 12, 6, 10],
-    gap: 6,
-    counterAlign: 'CENTER',
-  });
-  badgeFrame.primaryAxisSizingMode = 'AUTO';
-  (badgeFrame as any).counterAxisAlignItems = 'CENTER';
+  // ===================================
+  // Componente Customizado: Status Badge
+  // ===================================
+  // Cria um Component Set para o status na página de assets, se não existir
+  async function getOrCreateDocStatusBadge(): Promise<ComponentSetNode> {
+    await figma.loadAllPagesAsync();
+    const COMP_NAME = 'Doc-Status-Badge';
+    const existing = figma.root.findOne(n => n.name === COMP_NAME && n.type === 'COMPONENT_SET') as ComponentSetNode;
+    if (existing) {
+      existing.children.forEach(child => {
+        if (child.type === 'COMPONENT') {
+          child.primaryAxisSizingMode = 'AUTO';
+          child.counterAxisSizingMode = 'AUTO';
+        }
+      });
+      return existing;
+    }
 
-  const checkSvg = figma.createNodeFromSvg(`<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M7 13.5C3.41015 13.5 0.5 10.5899 0.5 7C0.5 3.41015 3.41015 0.5 7 0.5C10.5899 0.5 13.5 3.41015 13.5 7C13.5 10.5899 10.5899 13.5 7 13.5ZM7 12.5C10.0376 12.5 12.5 10.0376 12.5 7C12.5 3.96243 10.0376 1.5 7 1.5C3.96243 1.5 1.5 3.96243 1.5 7C1.5 10.0376 3.96243 12.5 7 12.5ZM9.85355 5.14645C10.0488 4.95118 10.3654 4.95118 10.5607 5.14645C10.7559 5.34171 10.7559 5.65829 10.5607 5.85355L6.35355 10.0607C6.15829 10.2559 5.84171 10.2559 5.64645 10.0607L3.64645 8.06066C3.45118 7.8654 3.45118 7.54882 3.64645 7.35355C3.84171 7.15829 4.15829 7.15829 4.35355 7.35355L6 9.00002L9.85355 5.14645Z" fill="#059669"/>
-</svg>`);
-  badgeFrame.appendChild(checkSvg);
+    const statuses = [
+      { status: 'Em design', bg: '#EFF6FF', color: '#1D4ED8' },        // Info
+      { status: 'Em desenvolvimento', bg: '#FEF3C7', color: '#B45309' }, // Warning
+      { status: 'Em validação', bg: '#F3E8FF', color: '#7E22CE' },     // Purple
+      { status: 'Publicado', bg: '#ECFDF5', color: '#047857' },        // Success
+    ];
 
-  const badgeText = createText('Conferido', 13, 'Medium', '#059669');
-  badgeFrame.appendChild(badgeText);
+    const components: ComponentNode[] = [];
+    let x = 0;
+
+    for (const s of statuses) {
+      const comp = figma.createComponent();
+      comp.name = `Status=${s.status}`;
+      comp.layoutMode = 'HORIZONTAL';
+      comp.primaryAxisAlignItems = 'CENTER';
+      comp.counterAxisAlignItems = 'CENTER';
+      comp.primaryAxisSizingMode = 'AUTO';
+      comp.counterAxisSizingMode = 'AUTO';
+      comp.paddingLeft = 12;
+      comp.paddingRight = 12;
+      comp.paddingTop = 6;
+      comp.paddingBottom = 6;
+      comp.itemSpacing = 0;
+      comp.cornerRadius = 100;
+      
+      comp.fills = [figma.util.solidPaint(s.bg)];
+      
+      const t = createText(s.status, 13, 'Medium', s.color);
+      comp.appendChild(t);
+      
+      comp.x = x;
+      components.push(comp);
+      x += comp.width + 16;
+    }
+
+    const compSet = figma.combineAsVariants(components, figma.currentPage);
+    compSet.name = COMP_NAME;
+
+    // Move para uma página de Assets para não sujar o design do usuário
+    let assetsPage = figma.root.children.find(p => p.name === '⚙️ DSI Assets');
+    if (!assetsPage) {
+      assetsPage = figma.createPage();
+      assetsPage.name = '⚙️ DSI Assets';
+    }
+    assetsPage.appendChild(compSet);
+    
+    return compSet;
+  }
+
+  let badgeFrame: SceneNode;
+  try {
+    const badgeSet = await getOrCreateDocStatusBadge();
+    const inst = badgeSet.defaultVariant.createInstance();
+    inst.name = 'Status-Badge';
+    badgeFrame = inst;
+  } catch (error) {
+    console.error("Erro ao instanciar Doc-Status-Badge:", error);
+    // Fallback: renderizar o badge original manualmente
+    const fallbackFrame = createFrame('Status-Badge', {
+      direction: 'HORIZONTAL',
+      fill: '#EFF6FF',
+      radius: 100,
+      padding: [6, 12, 6, 12],
+      gap: 0,
+      counterAlign: 'CENTER',
+    });
+    fallbackFrame.primaryAxisSizingMode = 'AUTO';
+    (fallbackFrame as any).counterAxisAlignItems = 'CENTER';
+
+    const badgeText = createText('Em design', 13, 'Medium', '#1D4ED8');
+    fallbackFrame.appendChild(badgeText);
+    badgeFrame = fallbackFrame;
+  }
 
   leftContent.appendChild(badgeFrame);
   headerCard.appendChild(leftContent);
@@ -893,10 +966,10 @@ async function renderAnatomy(parentFrame: FrameNode, componentData: ComponentDat
       const cy = childNode.y;
       const cw = childNode.width;
       const ch = childNode.height;
-      
+
       pinX = Math.round(cx + cw / 2 - PIN_SIZE / 2);
       pinY = Math.round(cy - PIN_SIZE - 4);
-      
+
       // Se passar muito do limite superior, posicionar abaixo do elemento
       if (pinY < -10) pinY = Math.round(cy + ch + 4);
     } else {
@@ -1497,7 +1570,7 @@ async function generateDocumentation(apiKey: string, userDescription: string) {
     const docFrame = createDocFrame(componentData.name);
 
     // Renderizar todas as seções, protegendo cada uma em try/catch para não quebrar a documentação inteira se uma parte falhar
-    renderHeader(docFrame, componentData, aiDocs);
+    await renderHeader(docFrame, componentData, aiDocs);
 
     const sectionsFrame = createFrame('Seções', {
       direction: 'VERTICAL',
