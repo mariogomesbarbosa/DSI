@@ -3,7 +3,6 @@
 > Documentação inteligente e automática para seus componentes do Figma, alimentada por IA.
 
 ![Banner do DSI](src/readme-banner.png)
-*Sugestão: Insira aqui uma imagem do card de documentação gerado pelo plugin para criar impacto visual.*
 
 ---
 
@@ -52,10 +51,8 @@ Para utilizar as funções de IA, você precisará de uma chave da API do Google
 ## 📸 Demonstração
 
 ![Interface do Plugin](src/plugin-ui-screenshot.png)
-*Sugestão: Coloque aqui um print da interface escura (dark mode) do plugin.*
 
-![Processo de Geração](src/generation-demo.gif)
-*Sugestão: Grave um GIF curto selecionando um componente e clicando em "Gerar Documentação".*
+![Processo de Geração](src/generation-demo.mp4)
 
 ---
 
