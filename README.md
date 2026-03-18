@@ -50,7 +50,7 @@ Para utilizar as funções de IA, você precisará de uma chave da API do Google
 
 ## 📸 Demonstração
 
-![Interface do Plugin](src/plugin-ui-screenshot.png)
+<!-- ![Interface do Plugin](src/plugin-ui-screenshot.png) -->
 
 <div align="center">
   <video src="src/generation-demo.mp4" width="100%" controls autoplay muted loop></video>
