@@ -1,28 +1,24 @@
-# Walkthrough — Grid Unificado de Variantes (v2.3)
+# Walkthrough — Busca Resiliente de Estados (v2.5)
 
-A seção de "Variantes" foi totalmente reestruturada para suportar um layout multi-coluna global, eliminando a lista vertical única e organizando todas as opções em um grid harmonioso.
+A seção de "Estados" agora é muito mais inteligente e resiliente, garantindo que nenhum estado fique sem um preview visual na sua documentação.
 
 ## O Que Foi Implementado
 
-### 1. Grid Mestre Único
-Substituímos a organização por blocos verticais por um **Grid Unificado** com comportamento de `WRAP`.
-- O plugin agora coloca todas as variantes (Default, Hover, Focus, Semantic, etc.) em um mesmo contêiner.
-- Isso permite que o layout de **2 colunas** (Medium) ou **4 colunas** (Small) funcione de ponta a ponta na seção.
+### 1. Sistema de Melhor Correspondência (Scoring)
+Implementamos um algoritmo de pontuação para localizar variantes:
+- **Prioridade 1**: O estado solicitado (ex: Hover, Disabled) deve bater obrigatoriamente.
+- **Prioridade 2**: O plugin tenta encontrar a variante que tenha a mesma cor (Semantic) e outras propriedades que você selecionou.
+- **Resultado**: Se a cor selecionada (ex: Success) não tiver o estado "Pressed" definido no Figma, o plugin buscará a versão "Pressed" de outra cor disponível (ex: Info), garantindo que o usuário veja o comportamento visual em vez de apenas um texto.
 
-### 2. Cards Autossuficientes
-Cada item no grid agora é um pacote completo:
-- **Título**: Nome claro da variante ou valor de propriedade no topo.
-- **Descrição**: Texto descritivo da IA logo abaixo do título.
-- **Preview Dedicado**: O card visual com fundo cinza e o componente centralizado.
+### 2. Correção do Fallback de Texto
+Anteriormente, se um match exato não era encontrado, o plugin mostrava apenas o nome do estado em texto. Agora, com a busca por pontuação, sempre teremos um componente visual para exemplificar a interação, tornando a documentação mais rica e profissional.
 
-### 3. Alinhamento e Espaçamento Profissionais
-- **Gap de 24px**: Aumentamos o espaçamento entre cards para garantir que a leitura de títulos e descrições não fique "apertada".
-- **Altura Dinâmica**: Os frames dos itens possuem altura baseada no conteúdo, mantendo o alinhamento de base dos previews.
-- **Detecção de Tamanho Persistente**: A inteligência de detectar "Medium" (ex: Selects) ou "Small" (ex: Botões) continua ativa, agora controlando a largura de cada card no grid mestre.
+### 3. Case-Insensitive e Robustez
+A busca agora é imune a diferenças de maiúsculas/minúsculas nos nomes das propriedades e valores, o que evita falhas de renderização causadas por inconsistências de nomenclatura no arquivo Figma.
 
 ## Resultados Visuais
-- **Documentação Compacta**: O que antes exigia uma rolagem longa agora cabe em uma visão muito mais sintetizada e organizada.
-- **Navegação Intuitiva**: É muito mais fácil comparar estados (como Hover vs Pressed) quando eles estão lado a lado no mesmo grid.
+- **Previews Completos**: Todas as linhas de estados agora possuem componentes visuais de ponta a ponta.
+- **Inteligência Contextual**: O plugin sempre tentará manter a cor que você escolheu, só mudando se for estritamente necessário para mostrar o estado.
 
 ---
 *Documentação gerada automaticamente pelo plugin AutoDocs.*

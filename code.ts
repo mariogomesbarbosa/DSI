@@ -276,6 +276,7 @@ function createFrame(name: string, options?: {
 }): FrameNode {
   const f = figma.createFrame();
   f.name = name;
+  f.clipsContent = false; // Desabilitar clip content por padrão
 
   const dir = options?.direction ?? 'VERTICAL';
   if (dir === 'NONE') {
@@ -1184,6 +1185,66 @@ function findVariantInstanceByProp(compSet: ComponentSetNode, propName: string, 
   ) as ComponentNode | null;
 }
 
+function findVariantWithOverrides(
+  compSet: ComponentSetNode,
+  baseNode: SceneNode,
+  overrides: { [key: string]: string }
+): ComponentNode | null {
+  let baseProperties: { [key: string]: string } = {};
+  if (baseNode.type === 'INSTANCE' || baseNode.type === 'COMPONENT') {
+    baseProperties = { ...(baseNode.variantProperties || {}) };
+  } else if (baseNode.type === 'COMPONENT_SET') {
+    baseProperties = { ...((baseNode as ComponentSetNode).defaultVariant.variantProperties || {}) };
+  }
+
+  const targetProperties = { ...baseProperties, ...overrides };
+  let bestMatch: ComponentNode | null = null;
+  let maxScore = -1;
+
+  for (const child of compSet.children) {
+    if (child.type !== 'COMPONENT') continue;
+    
+    const cProps = (child as ComponentNode).variantProperties || {};
+    
+    // 1. O estado (ou propriedades em 'overrides') DEVE bater obrigatoriamente
+    let matchesRequired = true;
+    for (const [oKey, oVal] of Object.entries(overrides)) {
+      const actualPropKey = Object.keys(cProps).find(k => k.toLowerCase() === oKey.toLowerCase());
+      const actualVal = actualPropKey ? cProps[actualPropKey] : null;
+      
+      if (!actualVal || actualVal.toLowerCase() !== oVal.toLowerCase()) {
+        matchesRequired = false;
+        break;
+      }
+    }
+
+    if (!matchesRequired) continue;
+
+    // 2. Calcular pontuação para as outras propriedades (ex: Semantic)
+    let currentScore = 0;
+    for (const [targetKey, targetVal] of Object.entries(targetProperties)) {
+      const actualPropKey = Object.keys(cProps).find(k => k.toLowerCase() === targetKey.toLowerCase());
+      const actualVal = actualPropKey ? cProps[actualPropKey] : null;
+      
+      if (actualVal && actualVal.toLowerCase() === targetVal.toLowerCase()) {
+        currentScore++;
+      }
+    }
+
+    if (currentScore > maxScore) {
+      maxScore = currentScore;
+      bestMatch = child as ComponentNode;
+      
+      // Se tivermos um score perfeito (todas as props bateram), podemos parar
+      if (currentScore === Object.keys(targetProperties).length) {
+        return bestMatch;
+      }
+    }
+  }
+
+  return bestMatch;
+}
+
 async function renderVariants(parentFrame: FrameNode, componentData: ComponentData, aiDocs: AIDocumentation, originNode: SceneNode) {
   if (aiDocs.variants.length === 0) return;
 
@@ -1204,6 +1265,7 @@ async function renderVariants(parentFrame: FrameNode, componentData: ComponentDa
   // Grid unificado que conterá todas as variantes/estados
   const mainGrid = figma.createFrame();
   mainGrid.name = 'Variantes-Grid';
+  mainGrid.clipsContent = false;
   mainGrid.layoutMode = 'HORIZONTAL';
   mainGrid.layoutWrap = 'WRAP';
   mainGrid.itemSpacing = 24;
@@ -1408,9 +1470,8 @@ async function renderStates(parentFrame: FrameNode, componentData: ComponentData
 
       // Preview do estado
       if (compSet?.type === 'COMPONENT_SET') {
-        const stateNode = compSet.children.find(c =>
-          c.type === 'COMPONENT' && c.name.toLowerCase().includes(stateName.toLowerCase())
-        ) as ComponentNode | undefined;
+        const overrides = { [stateGroup.variantName]: stateName };
+        const stateNode = findVariantWithOverrides(compSet, originNode, overrides);
 
         if (stateNode) {
           const inst = stateNode.createInstance();
