@@ -1,24 +1,20 @@
-# Walkthrough — Busca Resiliente de Estados (v2.5)
+# Walkthrough — Desabilitando Clip Content
 
-A seção de "Estados" agora é muito mais inteligente e resiliente, garantindo que nenhum estado fique sem um preview visual na sua documentação.
+Esta atualização garante que nenhum frame gerado pelo plugin AutoDocs tenha a propriedade **"Clip content"** habilitada. Isso evita que conteúdos (como sombras, badges ou elementos levemente fora da borda) fiquem escondidos nas seções da documentação.
 
-## O Que Foi Implementado
+## Alterações Implementadas
 
-### 1. Sistema de Melhor Correspondência (Scoring)
-Implementamos um algoritmo de pontuação para localizar variantes:
-- **Prioridade 1**: O estado solicitado (ex: Hover, Disabled) deve bater obrigatoriamente.
-- **Prioridade 2**: O plugin tenta encontrar a variante que tenha a mesma cor (Semantic) e outras propriedades que você selecionou.
-- **Resultado**: Se a cor selecionada (ex: Success) não tiver o estado "Pressed" definido no Figma, o plugin buscará a versão "Pressed" de outra cor disponível (ex: Info), garantindo que o usuário veja o comportamento visual em vez de apenas um texto.
+### 1. Helper `createFrame`
+O helper principal de criação de frames já possuía a configuração `clipsContent = false` por padrão. Reerifiquei e garanti que ele cubra a maioria das seções e containers do plugin.
 
-### 2. Correção do Fallback de Texto
-Anteriormente, se um match exato não era encontrado, o plugin mostrava apenas o nome do estado em texto. Agora, com a busca por pontuação, sempre teremos um componente visual para exemplificar a interação, tornando a documentação mais rica e profissional.
+### 2. Badge de Status de Documentação
+No gerador de componentes de status (`getOrCreateDocStatusBadge`), adicionei explicitamente `comp.clipsContent = false` para os componentes de status criados na página de assets.
 
-### 3. Case-Insensitive e Robustez
-A busca agora é imune a diferenças de maiúsculas/minúsculas nos nomes das propriedades e valores, o que evita falhas de renderização causadas por inconsistências de nomenclatura no arquivo Figma.
+### 3. Ícones e SVGs
+Os frames gerados a partir de SVGs (como o ícone do Storybook e o Logo DSI) agora têm o `clipsContent` desabilitado logo após a criação via `figma.createNodeFromSvg`.
 
-## Resultados Visuais
-- **Previews Completos**: Todas as linhas de estados agora possuem componentes visuais de ponta a ponta.
-- **Inteligência Contextual**: O plugin sempre tentará manter a cor que você escolheu, só mudando se for estritamente necessário para mostrar o estado.
+### 4. Clones de Preview
+Para os previews de componentes (na seção de Anatomia e no Preview principal), adicionei uma verificação para garantir que o clone do componente também não realize o clip de conteúdo, permitindo visualizar o componente em sua totalidade.
 
 ---
-*Documentação gerada automaticamente pelo plugin AutoDocs.*
+*Gerado automaticamente para garantir a melhor visualização da documentação.*

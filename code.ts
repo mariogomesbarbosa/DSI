@@ -368,6 +368,8 @@ function createPreviewCard(componentNode: ComponentNode | InstanceNode): FrameNo
   } else {
     clone = (componentNode as InstanceNode).clone();
   }
+  
+  if ('clipsContent' in clone) (clone as any).clipsContent = false;
 
   const MAX = 280;
   if (clone.width > MAX || clone.height > MAX) {
@@ -753,6 +755,7 @@ async function getOrCreateDocStatusBadge(): Promise<ComponentSetNode> {
   for (const s of statuses) {
     const comp = figma.createComponent();
     comp.name = `Status=${s.status}`;
+    comp.clipsContent = false;
     comp.layoutMode = 'HORIZONTAL';
     comp.primaryAxisAlignItems = 'CENTER';
     comp.counterAxisAlignItems = 'CENTER';
@@ -810,6 +813,7 @@ function createStorybookButton(link: string): FrameNode {
 <path d="M10.5655 2.89817L10.6874 0.177656L13.0276 0.00129051L13.1302 2.8039C13.1307 2.85141 13.1124 2.89719 13.0792 2.93121C13.046 2.96523 13.0007 2.98471 13.1302 2.8039C13.1307 2.85141 13.1124 2.89719 13.0792 2.93121L12.9532 2.98539C12.9096 2.98598 12.8671 2.97173 12.8326 2.94499L11.9271 2.25684L10.8573 3.04568C10.8184 3.07389 10.7702 3.08598 10.7226 3.0794C10.675 3.07283 10.6318 3.0481 10.6021 3.0104C10.5771 2.97843 10.5642 2.93871 10.5655 2.89817ZM9.20076 7.16108C9.20076 7.47341 11.4121 7.32141 11.7096 7.10079C11.7096 4.96902 10.5104 3.84734 8.31188 3.84734C6.1179 3.84734 4.88398 4.98505 4.88398 6.69227C4.88398 9.66931 9.09174 9.72896 9.09174 11.3522C9.10344 11.4521 9.09199 11.5533 9.05827 11.6481C9.02456 11.7429 8.96947 11.8286 8.8973 11.8987C8.82512 11.9688 8.73778 12.0213 8.64205 12.0522C8.54631 12.0831 8.44475 12.0915 8.34523 12.0769C7.67376 12.0769 7.40953 11.7485 7.43903 10.639C7.43903 10.3985 4.88398 10.3222 4.80895 10.639C4.61142 13.3313 6.36481 14.1086 8.37473 14.1086C10.3212 14.1086 11.8482 13.1145 11.8482 11.3239C11.8482 8.13462 7.58141 8.21863 7.58141 6.63583C7.57542 6.53272 7.59256 6.42957 7.63159 6.33394C7.67062 6.23831 7.73054 6.15262 7.80696 6.08314C7.88339 6.01366 7.97438 5.96216 8.07329 5.9324C8.17219 5.90263 8.2765 5.89537 8.37858 5.91113C8.68514 5.91113 9.24694 5.96244 9.20076 7.16108Z" fill="#FAFAFA"/>
 </svg>`;
   const icon = figma.createNodeFromSvg(iconSvg);
+  icon.clipsContent = false;
   btn.appendChild(icon);
 
   const label = createText('Storybook', 14, 'Medium', '#FF4081');
@@ -906,6 +910,7 @@ async function renderHeader(parentFrame: FrameNode, componentData: ComponentData
 </clipPath>
 </defs>
 </svg>`);
+  dsiSvg.clipsContent = false;
   logoFrame.appendChild(dsiSvg);
   titleRow.appendChild(logoFrame);
 
@@ -1013,6 +1018,8 @@ async function renderAnatomy(parentFrame: FrameNode, componentData: ComponentDat
   } else {
     clone = (targetNode as InstanceNode).clone();
   }
+  
+  if ('clipsContent' in clone) (clone as any).clipsContent = false;
 
   const MAX = 240;
   const origW = clone.width;
