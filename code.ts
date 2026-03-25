@@ -63,7 +63,7 @@ interface AIDocumentation {
 
 // --- Constantes de estilo ---
 const COLORS = {
-  bg: '#F6F5F8',
+  bg: '#E2E8F0',
   white: '#FFFFFF',
   blue: '#155DFC',
   dark: '#111111',
