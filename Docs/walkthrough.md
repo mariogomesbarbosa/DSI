@@ -1,28 +1,45 @@
-# Atualização de Design: Alteração da Fonte Principal
+# Walkthrough — Refatoração da Estrutura de Documentação
 
-Nesta atualização, a fonte padrão utilizada na geração da documentação automatizada foi alterada de **Inter** para **Figtree**.
+Nesta etapa, focamos em padronizar a estrutura hierárquica das seções e itens gerados pelo plugin para garantir uma organização visual mais limpa e consistente, seguindo os novos requisitos de design.
 
-## O que foi alterado:
+## 1. Estrutura das Seções
 
-1.  **Carregamento de Fontes (`loadFonts`):** 
-    - A função agora carrega a família `Figtree` com os estilos `Regular`, `Medium` e `Bold`.
-    - Isso garante que o Figma disponibilize os pesos necessários antes de tentar criar os textos.
+Todas as seções da documentação (ex: "Quando usar", "Variantes", "Tokens", etc.) agora seguem o mesmo padrão de agrupamento:
 
-2.  **Criação de Textos Genéricos (`createText`):**
-    - A função base responsável por criar a maioria dos textos da documentação agora utiliza `family: 'Figtree'` por padrão.
+- **Frame principal da Seção** (`Seção — NOME`):
+  - **Gap**: 24px entre o Header e o Content.
+  - **Preenchimento**: Padding interno mantido para acomodar o card branco.
+  
+- **Header**:
+  - Contém o **Título** da seção e a **Descrição** (se disponível).
+  - **Gap**: 12px entre o título e a descrição.
+  
+- **Content**:
+  - Agrupa todo o conteúdo específico daquela seção.
+  - **Gap**: 24px entre elementos dentro do conteúdo.
 
-3.  **Chips de Tokens (`renderTokens`):**
-    - A fonte utilizada na renderização dos nomes e valores dos tokens dentro dos chips (Labels) também foi atualizada para manter a consistência visual.
+## 2. Estrutura das Variantes (Variantes-Grid)
 
-4.  **Correção de Ordem de Atribuição:**
-    - Foi corrigido um erro onde os caracteres eram definidos antes da fonte ser atribuída (`set_characters before loadFont`). Agora, a fonte `Figtree` é definida **antes** do conteúdo do texto.
-    - Adicionado suporte ao carregamento de `Inter Regular` como fallback de segurança, prevenindo erros ao manipular componentes que utilizem a fonte padrão do sistema Figma.
+A seção de variantes recebeu uma estruturação detalhada para os seus itens ("Item-Padrão"):
 
-## Como testar:
+- **Frame Content (Variantes-Grid)**:
+  - Definido como o container principal das variantes com **gap de 24px**.
+  
+- **Frame Item-Padrão**:
+  - **Gap**: 16px entre o Header do item e o seu conteúdo.
+  
+- **Header (Item)**:
+  - Agrupa o **Título da Variante** e a **Descrição da Variante** gerada pela IA.
+  - **Gap**: 8px.
+  
+- **Content (Item) — Card-Padrão**:
+  - Contém o preview visual e o fundo do card.
 
-1.  Selecione um componente no Figma.
-2.  Inicie o plugin e gere a documentação.
-3.  Verifique se os textos criados agora utilizam a fonte **Figtree**.
+## 3. Benefícios Implementados
+
+- **Hierarquia Visual**: Melhor distinção entre o que é cabeçalho informativo e o que é conteúdo acionável.
+- **Consistência**: Todos os espaçamentos (gaps) agora seguem uma regra fixa (24, 12, 16, 8) que se repete em todo o documento.
+- **Organização de Camadas**: A árvore de camadas no Figma está mais organizada, facilitando a inspeção manual por designers.
 
 ---
-*Nota: Certifique-se de que a fonte Figtree está instalada no seu sistema ou disponível na sua organização do Figma para evitar erros de fonte ausente.*
+*Documentação gerada automaticamente para o AutoDocs Plugin.*

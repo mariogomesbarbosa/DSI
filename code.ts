@@ -336,20 +336,42 @@ function createBadge(num: number): FrameNode {
   return badge;
 }
 
-function createSectionFrame(titleText: string): FrameNode {
+function createSectionFrame(titleText: string, descriptionText?: string): { section: FrameNode, header: FrameNode, content: FrameNode } {
   const section = createFrame(`Seção — ${titleText}`, {
     direction: 'VERTICAL',
-    gap: 24,
+    gap: 24, // Frame principal = gap 24px
     padding: 28,
     radius: 12,
     fill: '#FFFFFF',
     layoutAlign: 'STRETCH',
   });
 
-  const title = createText(titleText, 22, 'Bold', COLORS.blue);
-  section.appendChild(title);
+  const header = createFrame('Header', {
+    direction: 'VERTICAL',
+    gap: 12, // Header = gap 12px
+    layoutAlign: 'STRETCH',
+  });
+  section.appendChild(header);
 
-  return section;
+  const title = createText(titleText, 22, 'Bold', COLORS.blue);
+  header.appendChild(title);
+
+  if (descriptionText) {
+    const desc = createText(descriptionText, 16, 'Regular', COLORS.mediumGray);
+    desc.layoutAlign = 'STRETCH';
+    desc.textAutoResize = 'HEIGHT';
+    desc.lineHeight = { value: 150, unit: 'PERCENT' };
+    header.appendChild(desc);
+  }
+
+  const content = createFrame('Content', {
+    direction: 'VERTICAL',
+    gap: 24, // Content = gap 24px
+    layoutAlign: 'STRETCH',
+  });
+  section.appendChild(content);
+
+  return { section, header, content };
 }
 
 function createPreviewCard(componentNode: ComponentNode | InstanceNode): FrameNode {
@@ -964,14 +986,14 @@ async function renderHeader(parentFrame: FrameNode, componentData: ComponentData
 // ============================================================
 
 function renderWhenToUse(parentFrame: FrameNode, aiDocs: AIDocumentation) {
-  const section = createSectionFrame('Quando usar');
+  const { section, content } = createSectionFrame('Quando usar');
   section.layoutAlign = 'STRETCH';
 
   const text = createText(aiDocs.whenToUse, 16, 'Regular', COLORS.darkGray);
   text.layoutAlign = 'STRETCH';
   text.textAutoResize = 'HEIGHT';
   text.lineHeight = { value: 160, unit: 'PERCENT' };
-  section.appendChild(text);
+  content.appendChild(text);
 
   parentFrame.appendChild(section);
 }
@@ -981,7 +1003,7 @@ function renderWhenToUse(parentFrame: FrameNode, aiDocs: AIDocumentation) {
 // ============================================================
 
 async function renderAnatomy(parentFrame: FrameNode, componentData: ComponentData, aiDocs: AIDocumentation, originNode: SceneNode) {
-  const section = createSectionFrame('Anatomia');
+  const { section, content } = createSectionFrame('Anatomia');
   section.layoutAlign = 'STRETCH';
   parentFrame.appendChild(section);
 
@@ -994,7 +1016,7 @@ async function renderAnatomy(parentFrame: FrameNode, componentData: ComponentDat
     direction: 'HORIZONTAL',
     gap: 24,
   });
-  section.appendChild(row); // Anexar PRIMEIRO para propriedades de AL funcionarem
+  content.appendChild(row); // Anexar na Content
   row.layoutAlign = 'STRETCH';
   (row as any).layoutSizingHorizontal = 'FILL';
 
@@ -1257,32 +1279,21 @@ function findVariantWithOverrides(
 async function renderVariants(parentFrame: FrameNode, componentData: ComponentData, aiDocs: AIDocumentation, originNode: SceneNode) {
   if (aiDocs.variants.length === 0) return;
 
-  const section = createSectionFrame('Variantes');
+  const descIntro = 'Cada variante tem uma função específica e deve ser usada de forma consistente em todos os produtos.';
+  const { section, content } = createSectionFrame('Variantes', descIntro);
   section.layoutAlign = 'STRETCH';
   parentFrame.appendChild(section);
 
-  const intro = createText(
-    'Cada variante tem uma função específica e deve ser usada de forma consistente em todos os produtos.',
-    15,
-    'Regular',
-    COLORS.darkGray
-  );
-  intro.layoutAlign = 'STRETCH';
-  intro.textAutoResize = 'HEIGHT';
-  section.appendChild(intro);
-
-  // Grid unificado que conterá todas as variantes/estados
-  const mainGrid = figma.createFrame();
-  mainGrid.name = 'Variantes-Grid';
-  mainGrid.clipsContent = false;
-  mainGrid.layoutMode = 'HORIZONTAL';
-  mainGrid.layoutWrap = 'WRAP';
-  mainGrid.itemSpacing = 24;
-  mainGrid.counterAxisSpacing = 24;
-  mainGrid.layoutAlign = 'STRETCH';
-  mainGrid.primaryAxisSizingMode = 'FIXED'; // Necessário para WRAP e Fill funcionarem juntos
-  mainGrid.counterAxisSizingMode = 'AUTO';
-  section.appendChild(mainGrid);
+  // Configurar o Content como o Grid unificado
+  content.name = 'Variantes-Grid';
+  content.clipsContent = false;
+  content.layoutMode = 'HORIZONTAL';
+  content.layoutWrap = 'WRAP';
+  content.itemSpacing = 16; // Conforme solicitado: gap 24px
+  content.counterAxisSpacing = 24;
+  content.layoutAlign = 'STRETCH';
+  content.primaryAxisSizingMode = 'FIXED'; // Necessário para WRAP e Fill funcionarem juntos
+  content.counterAxisSizingMode = 'AUTO';
 
   const compSet = originNode as ComponentSetNode;
   const targetNode = componentData.nodeType === 'COMPONENT_SET'
@@ -1296,18 +1307,14 @@ async function renderVariants(parentFrame: FrameNode, componentData: ComponentDa
 
   let cardWidth = 214;
   let cardHeight = 180;
-  let gridGap = 16;
 
   if (isLarge) {
     cardWidth = 904;
     cardHeight = 480;
-    gridGap = 24;
   } else if (!isSmall) {
     cardWidth = 440;
     cardHeight = 340;
-    gridGap = 24;
   }
-  mainGrid.itemSpacing = gridGap;
 
   for (const varInfo of aiDocs.variants) {
     const prop = componentData.variantProperties.find(p =>
@@ -1317,23 +1324,37 @@ async function renderVariants(parentFrame: FrameNode, componentData: ComponentDa
 
     if (prop) {
       for (const valName of prop.values) {
-        const itemFrame = createFrame(`Item-${valName}`, {
+        // Novo padrão de Item
+        const itemFrame = createFrame(`Item-Padrão`, {
           direction: 'VERTICAL',
-          gap: 12,
+          gap: 16, // Item = gap 16px
         });
-        itemFrame.resize(cardWidth, cardHeight + 100); // Espaço extra para título e descrição
+        itemFrame.resize(cardWidth, cardHeight + 110);
         itemFrame.layoutGrow = 0;
-        mainGrid.appendChild(itemFrame);
+        content.appendChild(itemFrame);
+
+        const itemHeader = createFrame('Header', {
+          direction: 'VERTICAL',
+          gap: 8, // Header do item = gap 8px
+          layoutAlign: 'STRETCH',
+        });
+        itemFrame.appendChild(itemHeader);
 
         const title = createText(valName, 18, 'Bold', COLORS.dark);
-        itemFrame.appendChild(title);
+        itemHeader.appendChild(title);
 
         const desc = createText(varInfo.description, 14, 'Regular', COLORS.mediumGray);
         desc.layoutAlign = 'STRETCH';
         desc.textAutoResize = 'HEIGHT';
-        itemFrame.appendChild(desc);
+        itemHeader.appendChild(desc);
 
-        const card = createFrame(`Card-${valName}`, {
+        const itemContent = createFrame('Content', {
+          direction: 'VERTICAL',
+          layoutAlign: 'STRETCH',
+        });
+        itemFrame.appendChild(itemContent);
+
+        const card = createFrame(`Card-Padrão`, {
           direction: 'VERTICAL',
           fill: '#FFFFFF',
           radius: 8,
@@ -1346,7 +1367,7 @@ async function renderVariants(parentFrame: FrameNode, componentData: ComponentDa
         });
         card.strokes = [figma.util.solidPaint('#EBEBEB')];
         card.strokeWeight = 1;
-        itemFrame.appendChild(card);
+        itemContent.appendChild(card);
 
         const previewBackground = createFrame('Preview-BG', {
           direction: 'VERTICAL',
@@ -1373,23 +1394,37 @@ async function renderVariants(parentFrame: FrameNode, componentData: ComponentDa
         }
       }
     } else {
-      const itemFrame = createFrame(`Item-${varInfo.name}`, {
+      // Novo padrão de Item (else case)
+      const itemFrame = createFrame(`Item-Padrão`, {
         direction: 'VERTICAL',
-        gap: 12,
+        gap: 16,
       });
-      itemFrame.resize(cardWidth, cardHeight + 100);
+      itemFrame.resize(cardWidth, cardHeight + 110);
       itemFrame.layoutGrow = 0;
-      mainGrid.appendChild(itemFrame);
+      content.appendChild(itemFrame);
+
+      const itemHeader = createFrame('Header', {
+        direction: 'VERTICAL',
+        gap: 8,
+        layoutAlign: 'STRETCH',
+      });
+      itemFrame.appendChild(itemHeader);
 
       const title = createText(varInfo.name, 18, 'Bold', COLORS.dark);
-      itemFrame.appendChild(title);
+      itemHeader.appendChild(title);
 
       const desc = createText(varInfo.description, 14, 'Regular', COLORS.mediumGray);
       desc.layoutAlign = 'STRETCH';
       desc.textAutoResize = 'HEIGHT';
-      itemFrame.appendChild(desc);
+      itemHeader.appendChild(desc);
 
-      const card = createFrame(`Card-${varInfo.name}`, {
+      const itemContent = createFrame('Content', {
+        direction: 'VERTICAL',
+        layoutAlign: 'STRETCH',
+      });
+      itemFrame.appendChild(itemContent);
+
+      const card = createFrame(`Card-Padrão`, {
         direction: 'VERTICAL',
         fill: '#FFFFFF',
         radius: 8,
@@ -1402,7 +1437,7 @@ async function renderVariants(parentFrame: FrameNode, componentData: ComponentDa
       });
       card.strokes = [figma.util.solidPaint('#EBEBEB')];
       card.strokeWeight = 1;
-      itemFrame.appendChild(card);
+      itemContent.appendChild(card);
 
       const previewBackground = createFrame('Preview-BG', {
         direction: 'VERTICAL',
@@ -1438,7 +1473,7 @@ async function renderVariants(parentFrame: FrameNode, componentData: ComponentDa
 async function renderStates(parentFrame: FrameNode, componentData: ComponentData, aiDocs: AIDocumentation, originNode: SceneNode) {
   if (componentData.states.length === 0) return;
 
-  const section = createSectionFrame('Estados');
+  const { section, content } = createSectionFrame('Estados');
   section.layoutAlign = 'STRETCH';
   parentFrame.appendChild(section);
 
@@ -1453,7 +1488,7 @@ async function renderStates(parentFrame: FrameNode, componentData: ComponentData
       padding: 0,
       gap: 20,
     });
-    section.appendChild(groupCard); // ANEXA PRIMEIRO
+    content.appendChild(groupCard); // ANEXA na Content da section
     groupCard.layoutAlign = 'STRETCH';
 
     // Título do grupo
@@ -1514,7 +1549,7 @@ async function renderStates(parentFrame: FrameNode, componentData: ComponentData
       groupCard.appendChild(desc);
     }
 
-    section.appendChild(groupCard);
+    content.appendChild(groupCard);
   }
 }
 
@@ -1523,7 +1558,7 @@ async function renderStates(parentFrame: FrameNode, componentData: ComponentData
 // ============================================================
 
 async function renderHierarchy(parentFrame: FrameNode, componentData: ComponentData, aiDocs: AIDocumentation) {
-  const section = createSectionFrame('Hierarquia');
+  const { section, content } = createSectionFrame('Hierarquia');
   section.layoutAlign = 'STRETCH';
 
   // Explicação geral
@@ -1531,7 +1566,7 @@ async function renderHierarchy(parentFrame: FrameNode, componentData: ComponentD
   explanation.layoutAlign = 'STRETCH';
   explanation.textAutoResize = 'HEIGHT';
   explanation.lineHeight = { value: 160, unit: 'PERCENT' };
-  section.appendChild(explanation);
+  content.appendChild(explanation);
 
   // Tamanho vs. Contexto (apenas se houver)
   if (aiDocs.hierarchy.sizeContext && aiDocs.hierarchy.sizeContext.length > 0) {
@@ -1542,7 +1577,7 @@ async function renderHierarchy(parentFrame: FrameNode, componentData: ComponentD
       padding: 0,
       gap: 16,
     });
-    section.appendChild(subCard); // ANEXA PRIMEIRO
+    content.appendChild(subCard); // ANEXA na Content
     subCard.layoutAlign = 'STRETCH';
 
     const subTitle = createText('Tamanho vs. Contexto', 16, 'Bold', COLORS.dark);
@@ -1601,7 +1636,7 @@ async function renderHierarchy(parentFrame: FrameNode, componentData: ComponentD
       subCard.appendChild(rowDiv);
     }
 
-    section.appendChild(subCard);
+    content.appendChild(subCard);
   }
 
   parentFrame.appendChild(section);
@@ -1612,7 +1647,7 @@ async function renderHierarchy(parentFrame: FrameNode, componentData: ComponentD
 // ============================================================
 
 function renderApplicationRules(parentFrame: FrameNode, aiDocs: AIDocumentation) {
-  const section = createSectionFrame('Regras de aplicação');
+  const { section, content } = createSectionFrame('Regras de aplicação');
   section.layoutAlign = 'STRETCH';
 
   const row = createFrame('Regras-Row', {
@@ -1676,7 +1711,7 @@ function renderApplicationRules(parentFrame: FrameNode, aiDocs: AIDocumentation)
 
   row.appendChild(doCard);
   row.appendChild(dontCard);
-  section.appendChild(row);
+  content.appendChild(row);
   parentFrame.appendChild(section);
 }
 
@@ -1690,19 +1725,10 @@ async function renderTokens(parentFrame: FrameNode, componentData: ComponentData
 
   if (!hasTokens) return;
 
-  const section = createSectionFrame('Tokens');
+  const descIntro = 'Variáveis e tokens de design aplicados na construção deste componente e suas variantes.';
+  const { section, content } = createSectionFrame('Tokens', descIntro);
   section.layoutAlign = 'STRETCH';
   parentFrame.appendChild(section);
-
-  const intro = createText(
-    'Variáveis e tokens de design aplicados na construção deste componente e suas variantes.',
-    15,
-    'Regular',
-    COLORS.darkGray
-  );
-  intro.layoutAlign = 'STRETCH';
-  intro.textAutoResize = 'HEIGHT';
-  section.appendChild(intro);
 
   const createTokenList = (title: string, list: { name: string, value: string, isAlias?: boolean, hexValue?: string, resolvedValue?: string }[]) => {
     // ... logic remains same inside ...
@@ -1814,7 +1840,7 @@ async function renderTokens(parentFrame: FrameNode, componentData: ComponentData
   if (colorCard) grids.appendChild(colorCard);
   if (typeCard) grids.appendChild(typeCard);
 
-  section.appendChild(grids);
+  content.appendChild(grids);
 }
 
 // ============================================================
