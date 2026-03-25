@@ -1,6 +1,6 @@
 # Walkthrough: Alteração no Cabeçalho e Integração com Storybook
 
-Este documento descreve as alterações realizadas no plugin AutoDocs para reestruturar o `Cabeçalho-Card` e permitir a inserção de um link do Storybook via interface.
+Este documento descreve as alterações realizadas no plugin DSI - Documentation para reestruturar o `Cabeçalho-Card` e permitir a inserção de um link do Storybook via interface.
 
 ## Mudanças Realizadas
 

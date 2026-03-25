@@ -1,6 +1,6 @@
 # Walkthrough: Transição para o Tema Claro
 
-Este documento descreve as alterações realizadas para converter a interface do plugin AutoDocs de um tema escuro para um **tema claro premium**.
+Este documento descreve as alterações realizadas para converter a interface do plugin DSI - Documentation de um tema escuro para um **tema claro premium**.
 
 ## Mudanças Realizadas
 

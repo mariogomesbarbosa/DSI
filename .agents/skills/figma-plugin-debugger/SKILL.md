@@ -8,7 +8,7 @@ description: Resolve erros obscuros da Figma Plugin API (falhas de UI vs Main th
 O Figma possui diversas idiossincrasias que geram "erros silenciosos" ou falsos positivos em Node Environments. Use esta skill para identificar e solucionar falhas difíceis e gargalos.
 
 ## Principais Dores e Regras Rápidas:
-- Fontes não carregam? Você precisa chamar `figma.loadFontAsync(fontName)` ANTES de atribuí-las. No AutoDocs usamos o `loadFonts` helper. Se houver falha de "font não está carregada", certifique-se de que `await` foi acionado na cadeia correta.
+- Fontes não carregam? Você precisa chamar `figma.loadFontAsync(fontName)` ANTES de atribuí-las. No DSI - Documentation usamos o `loadFonts` helper. Se houver falha de "font não está carregada", certifique-se de que `await` foi acionado na cadeia correta.
 - Componente sumindo / instanciando torto? ComponentSets possuem `.defaultVariant`. Instâncias dependem de `createInstance()` de componentes. Quando clonamos nós de "Anatomy" evite `.clone()` direto no Componente Pai, instancie antes as partes ou leia só via read-only.
 - Comunicação de UI (`figma.ui.postMessage`) precisa ser via `postMessage()`. Cuidado para não cruzar objetos com funções do console pro UI. JSON-serializable apenas.
 - API Rate Limits do Gemini Flash ou erro JSON Parse (Exceção comum do `callGemini`). Certifique-se de encapsular Try/Catches para erros passarem de volta pro `postMessage(type: "error")`.

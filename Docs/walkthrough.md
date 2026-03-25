@@ -27,4 +27,4 @@ A função `renderSpecs` vinda da branch `main` foi adaptada ao novo padrão:
 - Itens seguem `Item-Padrão` → `Header (gap 8)` + `Content`
 
 ---
-*AutoDocs Plugin — 25/03/2026*
+*DSI - Documentation Plugin — 25/03/2026*

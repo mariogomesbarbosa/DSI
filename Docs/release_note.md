@@ -1,6 +1,6 @@
 # 🚀 Release Notes — v1.3 (fix-hierarquia-informacao)
 
-Esta release marca uma grande evolução na organização visual e técnica do plugin AutoDocs, introduzindo uma nova hierarquia de componentes e a funcionalidade de medições automáticas.
+Esta release marca uma grande evolução na organização visual e técnica do plugin DSI - Documentation, introduzindo uma nova hierarquia de componentes e a funcionalidade de medições automáticas.
 
 ## ✨ Novidades e Melhorias
 
@@ -27,4 +27,4 @@ Introduzimos a geração automática de especificações técnicas:
 - **Gaps Consistentes**: Padronização dos espaços entre grupos de tokens (24px) para melhor leitura.
 
 ---
-*AutoDocs Plugin — A ponte de documentação entre Designer e Desenvolvedor.*
+*DSI - Documentation Plugin — A ponte de documentação entre Designer e Desenvolvedor.*

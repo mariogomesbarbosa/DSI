@@ -1,6 +1,6 @@
 ---
 name: Figma Project Conventions
-description: Regras de linguagem, dependências do pacote, e código estilo do AutoDocs.
+description: Regras de linguagem, dependências do pacote, e código estilo do DSI - Documentation.
 ---
 
 # Figma Project Conventions
