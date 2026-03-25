@@ -1681,6 +1681,172 @@ function renderApplicationRules(parentFrame: FrameNode, aiDocs: AIDocumentation)
 }
 
 // ============================================================
+// SEÇÃO: SPECS
+// ============================================================
+
+async function renderSpecs(parentFrame: FrameNode, componentData: ComponentData, originNode: SceneNode) {
+  const section = createSectionFrame('Specs');
+  section.layoutAlign = 'STRETCH';
+  parentFrame.appendChild(section); // Anexa primeiro para permitir Measurements na página
+
+  const intro = createText(
+    'Especificações do componente, como medidas e espaçamentos.',
+    15,
+    'Regular',
+    COLORS.darkGray
+  );
+  intro.layoutAlign = 'STRETCH';
+  intro.textAutoResize = 'HEIGHT';
+  section.appendChild(intro);
+
+  const mainGrid = createFrame('Specs-Grid', {
+    direction: 'HORIZONTAL',
+    gap: 24,
+    layoutAlign: 'STRETCH',
+  });
+  mainGrid.layoutWrap = 'WRAP';
+  mainGrid.counterAxisSpacing = 24;
+  mainGrid.primaryAxisSizingMode = 'FIXED';
+  section.appendChild(mainGrid);
+
+  const compSet = originNode as ComponentSetNode;
+  const targetNode = componentData.nodeType === 'COMPONENT_SET'
+    ? (originNode as ComponentSetNode).defaultVariant
+    : originNode as ComponentNode | InstanceNode;
+
+  const maxDim = Math.max(targetNode.width, targetNode.height);
+  const isSmall = maxDim < 150;
+  const isLarge = targetNode.width >= 500;
+
+  let cardWidth = isLarge ? 904 : (isSmall ? 214 : 440);
+  let cardHeight = isLarge ? 480 : (isSmall ? 180 : 340);
+  mainGrid.itemSpacing = isLarge ? 24 : 16;
+
+  const sizesToShow = componentData.sizingVariants && componentData.sizingVariants.length > 0
+    ? componentData.sizingVariants
+    : ['Default'];
+
+  for (const sizeName of sizesToShow) {
+    const itemFrame = createFrame(`Item-${sizeName}`, {
+      direction: 'VERTICAL',
+      gap: 12,
+    });
+    itemFrame.resize(cardWidth, cardHeight + 100);
+    itemFrame.layoutGrow = 0;
+    mainGrid.appendChild(itemFrame);
+
+    const titleStr = sizesToShow.length === 1 && sizeName === 'Default' ? 'Default' : sizeName;
+    const title = createText(titleStr, 18, 'Bold', COLORS.dark);
+    itemFrame.appendChild(title);
+
+    const desc = createText(`Medidas e espaçamentos do botão "${titleStr}".`, 14, 'Regular', COLORS.mediumGray);
+    desc.layoutAlign = 'STRETCH';
+    desc.textAutoResize = 'HEIGHT';
+    itemFrame.appendChild(desc);
+
+    const card = createFrame(`Card-${sizeName}`, {
+      direction: 'VERTICAL',
+      fill: '#FFFFFF',
+      radius: 8,
+      padding: 12,
+      gap: 10,
+      counterAlign: 'CENTER',
+      primaryAlign: 'CENTER',
+      fixedWidth: cardWidth,
+      fixedHeight: cardHeight,
+    });
+    card.strokes = [figma.util.solidPaint('#EBEBEB')];
+    card.strokeWeight = 1;
+    itemFrame.appendChild(card);
+
+    const previewBackground = createFrame('Preview-BG', {
+      direction: 'VERTICAL',
+      fill: '#F5F5F7',
+      radius: 4,
+      padding: 32,
+      primaryAlign: 'CENTER',
+      counterAlign: 'CENTER',
+      layoutAlign: 'STRETCH',
+    });
+    previewBackground.layoutGrow = 1;
+    card.appendChild(previewBackground);
+
+    let variantNode: ComponentNode | null = null;
+    if (componentData.nodeType === 'COMPONENT_SET') {
+      let sizePropName = '';
+      for (const prop of componentData.variantProperties) {
+        if (prop.values.map(v => v.toLowerCase()).includes(sizeName.toLowerCase())) {
+           sizePropName = prop.name; break;
+        }
+      }
+      if (sizePropName) {
+         variantNode = findVariantInstanceByProp(compSet, sizePropName, sizeName);
+      }
+      if (!variantNode) {
+         variantNode = findVariantInstance(compSet, sizeName, componentData);
+      }
+      if (!variantNode && compSet.children.length > 0) {
+         variantNode = compSet.defaultVariant as ComponentNode;
+      }
+    } else {
+      variantNode = originNode as ComponentNode;
+    }
+
+    if (variantNode) {
+      const inst = variantNode.createInstance();
+      const MAXW = cardWidth - 80;
+      const MAXH = cardHeight - 120;
+      if (inst.width > MAXW || inst.height > MAXH) {
+         const f = Math.min(MAXW / inst.width, MAXH / inst.height);
+         if ('rescale' in inst) inst.rescale(f);
+      }
+      
+      // Anexa o inst à árvore do documento (necessário para a Measurement API)
+      previewBackground.appendChild(inst);
+      
+      try {
+        if ('addMeasurement' in figma.currentPage) {
+           // Altura: Colado à ESQUERDA (offset OUTER negativo pode representar eixo X invertido, ou vice-versa)
+           (figma.currentPage as any).addMeasurement(
+             { node: inst, side: 'TOP' }, 
+             { node: inst, side: 'BOTTOM' },
+             { offset: { type: 'OUTER', fixed: -30 } }
+           );
+           
+           // Largura: Colado ABAIXO (offset OUTER positivo normalmente é eixo Y para baixo)
+           (figma.currentPage as any).addMeasurement(
+             { node: inst, side: 'LEFT' }, 
+             { node: inst, side: 'RIGHT' },
+             { offset: { type: 'OUTER', fixed: 30 } }
+           );
+           
+           if (inst.layoutMode !== 'NONE' && 'children' in inst && inst.children.length > 0) {
+              const firstChild = inst.children[0] as SceneNode;
+              const lastChild = inst.children[inst.children.length - 1] as SceneNode;
+              if (inst.paddingTop > 0) (figma.currentPage as any).addMeasurement({ node: inst, side: 'TOP' }, { node: firstChild, side: 'TOP' });
+              if (inst.paddingBottom > 0) (figma.currentPage as any).addMeasurement({ node: inst, side: 'BOTTOM' }, { node: lastChild, side: 'BOTTOM' });
+              if (inst.paddingLeft > 0) (figma.currentPage as any).addMeasurement({ node: inst, side: 'LEFT' }, { node: firstChild, side: 'LEFT' });
+              if (inst.paddingRight > 0) (figma.currentPage as any).addMeasurement({ node: inst, side: 'RIGHT' }, { node: lastChild, side: 'RIGHT' });
+              
+              if (inst.itemSpacing > 0 && inst.children.length > 1) {
+                 const c1 = inst.children[0] as SceneNode;
+                 const c2 = inst.children[1] as SceneNode;
+                 if (inst.layoutMode === 'HORIZONTAL') {
+                    (figma.currentPage as any).addMeasurement({ node: c1, side: 'RIGHT' }, { node: c2, side: 'LEFT' });
+                 } else {
+                    (figma.currentPage as any).addMeasurement({ node: c1, side: 'BOTTOM' }, { node: c2, side: 'TOP' });
+                 }
+              }
+           }
+        }
+      } catch (e) {
+        console.warn('Measurement API falhou:', e);
+      }
+    }
+  }
+}
+
+// ============================================================
 // SEÇÃO: TOKENS
 // ============================================================
 
@@ -1850,6 +2016,12 @@ async function generateDocumentation(apiKey: string, userDescription: string, st
     // Criar frame principal
     const docFrame = createDocFrame(componentData.name);
 
+    // Posicionar ao lado do componente selecionado e anexar precocemente 
+    // Isso garante que os nós clondos já estão no Documento, vital para a Measurement API
+    docFrame.x = node.x + node.width + 120;
+    docFrame.y = node.y;
+    figma.currentPage.appendChild(docFrame);
+
     // Renderizar todas as seções, protegendo cada uma em try/catch para não quebrar a documentação inteira se uma parte falhar
     await renderHeader(docFrame, componentData, aiDocs, storybookLink);
 
@@ -1859,16 +2031,16 @@ async function generateDocumentation(apiKey: string, userDescription: string, st
       padding: 60,
       layoutAlign: 'STRETCH',
     });
+    docFrame.appendChild(sectionsFrame); // Anecxar cedo!
 
     try { renderWhenToUse(sectionsFrame, aiDocs); } catch (e) { console.error('Erro ao renderizar Quando Usar', e); }
     try { await renderAnatomy(sectionsFrame, componentData, aiDocs, node); } catch (e) { console.error('Erro ao renderizar Anatomia', e); }
     try { await renderVariants(sectionsFrame, componentData, aiDocs, node); } catch (e) { console.error('Erro ao renderizar Variantes', e); }
     try { await renderStates(sectionsFrame, componentData, aiDocs, node); } catch (e) { console.error('Erro ao renderizar Estados', e); }
+    try { await renderSpecs(sectionsFrame, componentData, node); } catch (e) { console.error('Erro ao renderizar Specs', e); }
     try { await renderTokens(sectionsFrame, componentData); } catch (e) { console.error('Erro ao renderizar Tokens', e); }
     try { await renderHierarchy(sectionsFrame, componentData, aiDocs); } catch (e) { console.error('Erro ao renderizar Hierarquia', e); }
     try { renderApplicationRules(sectionsFrame, aiDocs); } catch (e) { console.error('Erro ao renderizar Regras', e); }
-
-    docFrame.appendChild(sectionsFrame);
 
     // Aplicar FILL horizontal em todas as seções do frame principal
     for (const child of docFrame.children) {
@@ -1876,11 +2048,6 @@ async function generateDocumentation(apiKey: string, userDescription: string, st
       if ('layoutSizingHorizontal' in child) (child as any).layoutSizingHorizontal = 'FILL';
     }
 
-    // Posicionar ao lado do componente selecionado
-    docFrame.x = node.x + node.width + 120;
-    docFrame.y = node.y;
-
-    figma.currentPage.appendChild(docFrame);
     figma.currentPage.selection = [docFrame];
     figma.viewport.scrollAndZoomIntoView([docFrame]);
 
