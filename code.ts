@@ -1325,8 +1325,8 @@ async function renderVariants(parentFrame: FrameNode, componentData: ComponentDa
         const itemFrame = createFrame(`Item-Padrão`, {
           direction: 'VERTICAL',
           gap: 16, // Item = gap 16px
+          fixedWidth: cardWidth,
         });
-        itemFrame.resize(cardWidth, cardHeight + 110);
         itemFrame.layoutGrow = 0;
         content.appendChild(itemFrame);
 
@@ -1359,7 +1359,7 @@ async function renderVariants(parentFrame: FrameNode, componentData: ComponentDa
           gap: 10,
           counterAlign: 'CENTER',
           primaryAlign: 'CENTER',
-          fixedWidth: cardWidth,
+          layoutAlign: 'STRETCH',
           fixedHeight: cardHeight,
         });
         card.strokes = [figma.util.solidPaint('#EBEBEB')];
@@ -1395,8 +1395,8 @@ async function renderVariants(parentFrame: FrameNode, componentData: ComponentDa
       const itemFrame = createFrame(`Item-Padrão`, {
         direction: 'VERTICAL',
         gap: 16,
+        fixedWidth: cardWidth,
       });
-      itemFrame.resize(cardWidth, cardHeight + 110);
       itemFrame.layoutGrow = 0;
       content.appendChild(itemFrame);
 
@@ -1429,7 +1429,7 @@ async function renderVariants(parentFrame: FrameNode, componentData: ComponentDa
         gap: 10,
         counterAlign: 'CENTER',
         primaryAlign: 'CENTER',
-        fixedWidth: cardWidth,
+        layoutAlign: 'STRETCH',
         fixedHeight: cardHeight,
       });
       card.strokes = [figma.util.solidPaint('#EBEBEB')];

@@ -1,30 +1,23 @@
-# Walkthrough — Refatoração da Estrutura de Documentação
+# Walkthrough — Hug Height nos frames Item-Padrão
+## 1. Implementação do Hug Height
 
-## 1. Padrão Header/Content em Seções
+Foi alterada a forma como os frames `Item-Padrão` são gerados para garantir que a altura seja dinâmica ("Hug content").
 
-Todas as seções seguem:
+- **Remoção de Resize Fixo**: Foi removida a chamada `itemFrame.resize(cardWidth, cardHeight + 110)`, que forçava uma altura fixa de `cardHeight + 110px`.
+- **Uso de fixedWidth**: Agora o helper `createFrame` recebe o parâmetro `fixedWidth: cardWidth`, permitindo altura como **Hug**.
 
-- **Frame principal** (`Seção — NOME`) → `gap: 24px`
-  - **Header** → `gap: 12px` (título + descrição)
-  - **Content** → `gap: 24px` (conteúdo específico)
-
-Seções adaptadas: *Quando usar, Anatomia, Variantes, Estados, Specs, Tokens, Hierarquia, Regras de aplicação*.
-
-## 2. Padrão Item-Padrão
+## 2. Padrão Item-Padrão e Card-Padrão
 
 Itens nas seções Variantes e Specs seguem:
 
-- **Item-Padrão** → `gap: 16px`
-  - **Header** → `gap: 8px` (título + descrição do item)
-  - **Content** → Card-Padrão com preview
+- **Item-Padrão** → `gap: 16px`. Altura como **Hug content**.
+- **Card-Padrão** (interno) → Largura como **Fill** (`layoutAlign: STRETCH`).
 
-## 3. Merge da Seção Specs
+## 3. Locais Alterados
 
-A função `renderSpecs` vinda da branch `main` foi adaptada ao novo padrão:
-- `createSectionFrame` retorna `{ section, header, content }` (não mais `FrameNode`)
-- Descrição é passada como parâmetro `descriptionText`
-- Grid adicionado no frame `content`
-- Itens seguem `Item-Padrão` → `Header (gap 8)` + `Content`
+As alterações foram aplicadas em dois pontos da função `renderVariants` no arquivo `code.ts`:
+1. No loop que gera itens baseados em propriedades de variantes encontradas.
+2. No caso de fallback (else).
 
 ---
-*DSI - Documentation Plugin — 25/03/2026*
+*DSI - Documentation Plugin — 26/03/2026*
