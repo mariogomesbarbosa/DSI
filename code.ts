@@ -1361,7 +1361,6 @@ async function renderVariants(parentFrame: FrameNode, componentData: ComponentDa
           counterAlign: 'CENTER',
           primaryAlign: 'CENTER',
           layoutAlign: 'STRETCH',
-          fixedHeight: cardHeight,
         });
         card.strokes = [figma.util.solidPaint('#EBEBEB')];
         card.strokeWeight = 1;
@@ -1376,7 +1375,6 @@ async function renderVariants(parentFrame: FrameNode, componentData: ComponentDa
           counterAlign: 'CENTER',
           layoutAlign: 'STRETCH',
         });
-        previewBackground.layoutGrow = 1;
         card.appendChild(previewBackground);
 
         const variantNode = findVariantInstanceByProp(compSet, prop.name, valName);
@@ -1431,7 +1429,6 @@ async function renderVariants(parentFrame: FrameNode, componentData: ComponentDa
         counterAlign: 'CENTER',
         primaryAlign: 'CENTER',
         layoutAlign: 'STRETCH',
-        fixedHeight: cardHeight,
       });
       card.strokes = [figma.util.solidPaint('#EBEBEB')];
       card.strokeWeight = 1;
@@ -1446,7 +1443,6 @@ async function renderVariants(parentFrame: FrameNode, componentData: ComponentDa
         counterAlign: 'CENTER',
         layoutAlign: 'STRETCH',
       });
-      previewBackground.layoutGrow = 1;
       card.appendChild(previewBackground);
 
       const variantNode = findVariantInstance(compSet, varInfo.name, componentData);
@@ -1755,8 +1751,8 @@ async function renderSpecs(parentFrame: FrameNode, componentData: ComponentData,
     const itemFrame = createFrame('Item-Padrão', {
       direction: 'VERTICAL',
       gap: 16,
+      fixedWidth: cardWidth,
     });
-    itemFrame.resize(cardWidth, cardHeight + 110);
     itemFrame.layoutGrow = 0;
     mainGrid.appendChild(itemFrame);
 
@@ -1791,7 +1787,6 @@ async function renderSpecs(parentFrame: FrameNode, componentData: ComponentData,
       counterAlign: 'CENTER',
       primaryAlign: 'CENTER',
       fixedWidth: cardWidth,
-      fixedHeight: cardHeight,
     });
     card.strokes = [figma.util.solidPaint('#EBEBEB')];
     card.strokeWeight = 1;
@@ -1801,12 +1796,11 @@ async function renderSpecs(parentFrame: FrameNode, componentData: ComponentData,
       direction: 'VERTICAL',
       fill: '#F5F5F7',
       radius: 4,
-      padding: 32,
+      padding: [32, 32, 60, 32],
       primaryAlign: 'CENTER',
       counterAlign: 'CENTER',
       layoutAlign: 'STRETCH',
     });
-    previewBackground.layoutGrow = 1;
     card.appendChild(previewBackground);
 
     let variantNode: ComponentNode | null = null;
