@@ -1,16 +1,15 @@
-# Walkthrough — Hug Height nos frames Card-Padrão e Preview-BG
+# Walkthrough — Largura "Fill" na Seção Specs
 
-## 1. Implementação do Hug Height
+## 1. Implementação da Largura "Fill"
 
-Foi alterada a forma como os frames `Item-Padrão`, `Card-Padrão` e `Preview-BG` são gerados para garantir que a altura seja dinâmica ("Hug content"), acompanhando o conteúdo.
+Foi alterada a configuração de largura dos frames `Item-Padrão` e `Card-Padrão` especificamente na função `renderSpecs` para que eles ocupem o espaço disponível (comportamento "Fill").
 
-- **Item-Padrão**: Na seção Specs, foi removida a chamada de `resize` que forçava uma altura fixa, agora utilizando `fixedWidth: cardWidth` para permitir a altura como **Hug**.
-- **Card-Padrão**: Foi removida a propriedade `fixedHeight: cardHeight` na criação do frame. Sem uma altura fixa definida, o helper `createFrame` aplica por padrão `primaryAxisSizingMode = 'AUTO'`, que no Auto Layout de direção VERTICAL corresponde ao comportamento "Hug".
-- **Preview-BG**: Foi removida a linha `previewBackground.layoutGrow = 1`. O `layoutGrow = 1` forçava o frame a preencher o espaço disponível (Fill) no eixo principal da `Card-Padrão`. Com a remoção, o frame passa a ter altura automática ("Hug"), ajustando-se ao tamanho da instância do componente que contém.
+- **Item-Padrão**: Foi removida a largura fixa (`fixedWidth: cardWidth`) e adicionada a propriedade `layoutGrow: 1`. Como o pai deste frame (`mainGrid`) utiliza `HORIZONTAL` com `WRAP`, o `layoutGrow: 1` permite que o item se expanda para preencher a largura da linha no grid.
+- **Card-Padrão**: Foi removida a largura fixa (`fixedWidth: cardWidth`) e adicionada a propriedade `layoutAlign: 'STRETCH'`. Como seu pai (`itemContent`) possui direção `VERTICAL`, o `layoutAlign: 'STRETCH'` faz com que o frame preencha a largura total do seu container pai.
 
 ## 2. Locais Alterados
 
-As alterações foram aplicadas nas funções **`renderVariants`** e **`renderSpecs`** do arquivo `code.ts`. Isso unifica o comportamento de altura dinâmica em todas as seções de visualização de componentes do plugin.
+As alterações foram aplicadas exclusivamente na função **`renderSpecs`** do arquivo `code.ts`.
 
 ---
-*DSI - Documentation Plugin — 01/04/2026*
+*DSI - Documentation Plugin — 08/04/2026*

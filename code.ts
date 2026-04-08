@@ -1751,9 +1751,8 @@ async function renderSpecs(parentFrame: FrameNode, componentData: ComponentData,
     const itemFrame = createFrame('Item-Padrão', {
       direction: 'VERTICAL',
       gap: 16,
-      fixedWidth: cardWidth,
+      layoutGrow: 1,
     });
-    itemFrame.layoutGrow = 0;
     mainGrid.appendChild(itemFrame);
 
     const itemHeader = createFrame('Header', {
@@ -1786,7 +1785,7 @@ async function renderSpecs(parentFrame: FrameNode, componentData: ComponentData,
       gap: 10,
       counterAlign: 'CENTER',
       primaryAlign: 'CENTER',
-      fixedWidth: cardWidth,
+      layoutAlign: 'STRETCH',
     });
     card.strokes = [figma.util.solidPaint('#EBEBEB')];
     card.strokeWeight = 1;
